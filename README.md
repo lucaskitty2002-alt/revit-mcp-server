@@ -1,6 +1,6 @@
 # Codex desktop app in Revit
 
-Version 2.6.1 places the **original Codex desktop window over the Revit panel**, preserving the app's own interface, mouse/keyboard input, chats, approvals, attachments and tools. The user chose one original app window that can move between Revit and the desktop. This is an experimental Windows window-placement integration, not two simultaneously interactive copies.
+Version 2.6.2 positions the **original Codex desktop window over the Revit panel** while preserving its native owner, frame and input handling. The user chose one original app window that can move between Revit and the desktop. This is an experimental Windows window-placement integration; compatibility with the actual Codex app still requires the user's trial.
 
 ## Use
 
@@ -9,13 +9,15 @@ Version 2.6.1 places the **original Codex desktop window over the Revit panel**,
 3. Select the Codex app window and choose **Vis i Revit**. Use the refresh button if the window is missing.
 4. Use Codex normally in the panel area. Choose **Frigør** to restore its frame and original placement.
 
-The original app receives input directly. Its native menus and dialogs can open as normal separate windows. Make the panel larger if Codex refuses its size. Use **⋯ > Gendan tidligere placering** after an interrupted placement if the previous host is no longer running. Normal panel close/hide/shutdown releases the app first. A hard process crash is not guaranteed to preserve an owned window.
+The original app receives input directly. Its native menus and dialogs can open as normal separate windows. **Vis igen** restores a manually minimized/maximized source and brings it back to the panel. A minimized/hidden host pauses placement and temporarily hides a normal source without minimizing it. Use **⋯ > Gendan tidligere placering** after an interrupted placement if the previous host is no longer running. Normal panel close/hide/shutdown releases the app first.
 
 **⋯ > Levende forhåndsvisning** uses local DWM thumbnails to show a live, view-only image. An early mouse/keyboard-message relay worked for text but failed a native-button test and was removed. Do not describe the preview as an interactive screen-sharing session. **Tekstchat** retains the version 2.5 same-thread text interface, including its limited feature set.
 
 ## Window behavior
 
-`DesktopOverlayLease` changes the top-level window's owner (`GWLP_HWNDPARENT`), frame and screen bounds. It never uses cross-process `SetParent` or converts Codex into a child window. Different DPI-awareness modes are preserved. The original owner, styles and placement are saved before mutation, along with PID/start-time identity, in a local recovery file. A live modal's disabled-owner state is preserved when releasing. Source processes are never terminated by the plugin.
+`DesktopOverlayLease` changes screen bounds and, when necessary, the temporary stacking band. New leases never change the source owner, native frame/styles, parent or DPI context. The original show state, placement and band are saved with PID/start-time identity in a local recovery file. Legacy records still restore the owner/frame changed by 2.6/2.6.1. Source processes are never terminated by the plugin.
+
+Version 2.6.1 was rejected in the actual user trial: the panel was blank despite its green status, then the source became minimized. That is separate from the passing WinForms fixture tests. Cross-process ownership can implicitly couple input queues ([Microsoft explanation](https://devblogs.microsoft.com/oldnewthing/20130412-00/?p=4683/)); removing that relationship and preserving the compositor-based app's native style addresses a likely cause, not a proven actual-app success. Status now reports placement or pause rather than claiming app readiness. Diagnostics include cloaking, native classes/styles and foreground/focus metadata without reading chat content.
 
 This project exposes 138 Revit model tools and builds on [LuDattilo/revit-mcp-server](https://github.com/LuDattilo/revit-mcp-server), preserving its license and notices.
 
@@ -28,7 +30,7 @@ dotnet run --project tests/shared-chat/SharedChat.Tests.csproj
 ./tests/codex-panel/Test-Installer.ps1
 ```
 
-The window test creates its own source app and host. It verifies composed preview pixels, different DPI modes, original-window placement, top-level identity, unchanged DPI, normal owned-modal behavior and restoration. It does not operate user applications or prove compatibility with the actual Codex app. See [validation status](docs/shared-chat-status.md).
+The window test creates its own source app and host. It verifies composed preview/overlay pixels, different DPI modes, native owner/frame preservation, host minimize/restore, source pause/explicit resume, modal behavior and restoration. It does not operate user applications or prove compatibility with the actual Codex app. See [validation status](docs/shared-chat-status.md).
 
 Optional manual preview without installing: run `tests/window-mirror/bin/Debug/net8.0-windows/WindowMirror.Tests.exe --preview <absolute path to RevitMCPPlugin.dll>` and use the visible controls yourself. The helper does not automatically select or operate Codex.
 

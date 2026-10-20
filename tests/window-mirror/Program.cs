@@ -74,6 +74,8 @@ internal static class Program
                 {
                     overlay.Attach(new CodexDesktopWindow {Handle=source,ProcessId=child.Id,Title="Controlled fixture"},new WindowInteropHelper(window).Handle,screenBounds);
                     Check(overlay.IsAttached && N.GetAncestor(source,2)==source,"original source remains a top-level window");
+                    Check(N.GetWindow(source,4)==originalParent,"placing source preserves its original native owner");
+                    Check(SameFrameStyle(Native.GetWindowLongPtr(source,-16).ToInt64(),style.ToInt64()),"placing source preserves its original native frame styles");
                     Check((Native.GetWindowLongPtr(source,-16).ToInt64()&0x40000000L)==0,"source never becomes a WS_CHILD window");
                     Check(Native.AreDpiAwarenessContextsEqual(vp,Native.GetWindowDpiAwarenessContext(source)),"overlay preserves source DPI context");
                     using(new N.DpiScope())
@@ -84,6 +86,7 @@ internal static class Program
                     await Task.Delay(250);
                     Check(overlay.IsVisiblyPlaced(),"normal overlay reports verified visible placement");
                     VerifyOverlayPixels(source,screenBounds,Path.Combine(root,"controlled-overlay-normal.png"));
+                    await VerifyPauseLifecycle(overlay,source,window,screenBounds,root,(extendedStyle.ToInt64()&0x8)!=0);
                     File.WriteAllText(Path.Combine(root,"open-modal.txt"),"open");
                     await Until(()=>File.Exists(Path.Combine(root,"popup.txt")),"normal source control opens its owned modal");
                     Check((Native.GetWindowLongPtr(source,-16).ToInt64()&0x08000000L)!=0,"modal disables its real owner normally");
@@ -114,6 +117,54 @@ internal static class Program
         finally { if(!child.HasExited) child.Kill(); child.Dispose(); }
         if(failure!=null) throw failure;
     }
+    static async Task VerifyPauseLifecycle(DesktopOverlayLease overlay,IntPtr source,Window hostWindow,N.Rect bounds,string root,bool originalTopmost)
+    {
+        IntPtr host=new WindowInteropHelper(hostWindow).Handle;
+        try
+        {
+            hostWindow.WindowState=WindowState.Minimized;
+            await Until(()=>N.IsIconic(host),"controlled host is minimized");
+            for(int attempt=0;attempt<3;attempt++){overlay.Update(bounds);await Task.Delay(60);}
+            Check(overlay.HasLease&&overlay.IsAttached&&overlay.IsPaused&&!string.IsNullOrWhiteSpace(overlay.PausedReason),"host minimize pauses placement while retaining the lease");
+            Check(N.IsIconic(host),"paused update never restores the minimized host");
+            Check(!N.IsWindowVisible(source)&&!N.IsIconic(source),"host minimize temporarily hides source without minimizing it");
+            hostWindow.WindowState=WindowState.Normal;
+            await Until(()=>!N.IsIconic(host)&&N.IsWindowVisible(host),"controlled host is restored");
+            overlay.Update(bounds);
+            await Task.Delay(250);
+            Check(overlay.HasLease&&!overlay.IsPaused&&N.IsWindowVisible(source)&&!N.IsIconic(source),"host restore resumes the original source window");
+            if(!overlay.IsVisiblyPlaced())
+            {
+                overlay.CaptureDiagnostic("controlled_host_restore",null);
+                Console.WriteLine("Host restore visibility diagnostic: "+overlay.LastDiagnostic);
+            }
+            Check(overlay.IsVisiblyPlaced(),"restored host recovers verified overlay visibility");
+            VerifyOverlayPixels(source,bounds,Path.Combine(root,"controlled-overlay-host-restored.png"));
+
+            Native.ShowWindow(source,6);
+            await Until(()=>N.IsIconic(source),"controlled source is independently minimized");
+            for(int attempt=0;attempt<3;attempt++){overlay.Update(bounds);await Task.Delay(60);}
+            Check(overlay.HasLease&&overlay.IsAttached&&overlay.IsPaused&&!string.IsNullOrWhiteSpace(overlay.PausedReason),"source minimize pauses placement while retaining the lease");
+            Check(N.IsIconic(source),"paused update never forces a minimized source to restore");
+            Check(((Native.GetWindowLongPtr(source,-20).ToInt64()&0x8)!=0)==originalTopmost,"source minimize pause restores its original topmost band");
+            overlay.Resume(bounds);
+            await Task.Delay(250);
+            Check(overlay.HasLease&&!overlay.IsPaused&&!N.IsIconic(source)&&overlay.IsVisiblyPlaced(),"explicit resume restores the source and verifies placement");
+            VerifyOverlayPixels(source,bounds,Path.Combine(root,"controlled-overlay-source-resumed.png"));
+
+            Native.ShowWindow(source,3);
+            await Until(()=>Native.IsZoomed(source),"controlled source is independently maximized");
+            overlay.Update(bounds);
+            Check(overlay.HasLease&&overlay.IsAttached&&overlay.IsPaused&&Native.IsZoomed(source),"source maximize pauses placement and preserves the user show state");
+            Check(((Native.GetWindowLongPtr(source,-20).ToInt64()&0x8)!=0)==originalTopmost,"source maximize pause restores its original topmost band");
+            overlay.Resume(bounds);
+            await Task.Delay(250);
+            Check(!overlay.IsPaused&&!Native.IsZoomed(source)&&overlay.IsVisiblyPlaced(),"explicit resume after maximize restores visible panel placement");
+            VerifyOverlayPixels(source,bounds,Path.Combine(root,"controlled-overlay-source-max-resumed.png"));
+        }
+        finally {hostWindow.WindowState=WindowState.Normal;}
+    }
+    static bool SameFrameStyle(long a,long b)=>(a&~(0x01000000L|0x20000000L))==(b&~(0x01000000L|0x20000000L));
     static async Task VerifyWindowStateTransitions(IntPtr source,int processId,IntPtr host,N.Rect bounds,string root)
     {
         // Only this test's own fixture is operated. Real app windows are never selected here.
@@ -131,10 +182,12 @@ internal static class Program
                 Check(DesktopWindowLease.Native.GetWindowPlacement(source,ref original),"read "+state+" placement");
                 long originalStyle=Native.GetWindowLongPtr(source,-16).ToInt64();
                 long originalExtendedStyle=Native.GetWindowLongPtr(source,-20).ToInt64();
+                IntPtr originalOwner=N.GetWindow(source,4);
                 overlay.Attach(new CodexDesktopWindow {Handle=source,ProcessId=processId,Title="Controlled "+state+" fixture"},host,bounds);
                 await Task.Delay(250);
                 Check(overlay.IsAttached&&!Native.IsZoomed(source)&&!N.IsIconic(source),state+" source is restored to a normal interactive window while placed");
                 Check(overlay.IsVisiblyPlaced(),state+" overlay reports verified visible placement");
+                Check(N.GetWindow(source,4)==originalOwner&&SameFrameStyle(Native.GetWindowLongPtr(source,-16).ToInt64(),originalStyle),state+" placement preserves native owner and frame styles");
                 Check(N.GetAncestor(source,2)==source&&(Native.GetWindowLongPtr(source,-16).ToInt64()&0x40000000L)==0,state+" source remains top-level");
                 using(new N.DpiScope())
                 {

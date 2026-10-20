@@ -48,3 +48,15 @@ The controlled host uses a temporary topmost band without requesting foreground 
 The UI now has a primary Vis i Revit action, Frigør, a compact menu, visible status/error cards and responsive controls. Window labels use Codex-app instead of exposing ChatGPT plus a PID. A local last-operation diagnostic includes window metadata and errors only. The rendered panel was inspected at 669 × 700 and 360 × 560 pixels.
 
 Version 2.6.1.0 was installed for Revit 2026 on 2026-10-20 with Revit closed. The installer completed its backup, replacement and MCP registration. The installed DLL matches source commit b753ac7 and the tested package, SHA-256: 4C5EBE767B687262CCD5103585DA3696CEC4D85DF3869F6A4017A1C5C10AA920. The canonical add-in manifest was verified. Actual Codex/Revit typing and full-interface acceptance still need the user's trial; installation and controlled tests do not establish those results.
+
+## Version 2.6.1 actual trial failed
+
+The user initially selected a response saying the window appeared but typing failed, then clarified with two screenshots that the Codex content never appeared in the panel. One image shows a blank white area with a false green ready status. The second shows the source reduced to 237 × 39 pixels. The local diagnostic confirms a minimized source at −32000, −32000, not a minimum-size constraint. Recovery rolled the lease back. Do not interpret the initial multiple-choice response as a successful visibility check.
+
+Read-only native metadata identifies the selected HWND as the actual app primary Chrome_WidgetWin_1 with Chrome_RenderWidgetHostHWND and Intermediate D3D Window children. This is a compositor-based app, unlike the WinForms test fixture.
+
+## Version 2.6.2 native-window placement
+
+New leases preserve the source's original owner and frame/styles. They do not assign Revit as owner or force WS_POPUP. Cross-process ownership implicitly attaches input queues ([Microsoft documentation](https://devblogs.microsoft.com/oldnewthing/20130412-00/?p=4683/)); removing it addresses a plausible cause of the blank app but is not proof that the actual app now renders.
+
+Host minimize/hide pauses and temporarily hides a normal source without minimizing it. Host restore resumes its position without activation. A manually minimized/maximized source retains its lease and waits for the explicit Vis igen action. Source pause restores its original topmost band. Metadata diagnostics include native classes/styles, cloaking, host/source state and foreground/focus handles. A neutral placement status replaces the false green ready claim. Actual Codex rendering and input must be confirmed by the user after installation.

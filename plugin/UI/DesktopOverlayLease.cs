@@ -8,15 +8,18 @@ using N = revit_mcp_plugin.UI.DesktopWindowLease.Native;
 
 namespace revit_mcp_plugin.UI
 {
-    // Place the original top-level window over the panel. Owner != child parent:
-    // this preserves the app's input loop and avoids cross-process SetParent/DPI resets.
+    // Position the original app without cross-process parenting OR ownership.
+    // Both relationships can couple input queues. Preserve Chromium's native frame.
     public sealed class DesktopOverlayLease
     {
         private readonly string _recoveryFile;
         private Snapshot _snapshot;
         private DesktopMirrorSession.Native.Rect _lastBounds;
+        private bool _hiddenByHost;
         public bool HasLease => _snapshot != null;
-        public bool IsAttached => _snapshot != null && SameWindow(_snapshot) && N.GetWindow(new IntPtr(_snapshot.Window), 4) == new IntPtr(_snapshot.Host);
+        public bool IsAttached => _snapshot != null && SameWindow(_snapshot) && N.IsWindow(new IntPtr(_snapshot.Host));
+        public bool IsPaused { get; private set; }
+        public string PausedReason { get; private set; } = "";
         public string LastDiagnostic { get; private set; } = "";
         public DesktopOverlayLease(string recoveryFile) { _recoveryFile = recoveryFile; }
         public void Attach(CodexDesktopWindow window, IntPtr host, DesktopMirrorSession.Native.Rect bounds)
@@ -33,39 +36,58 @@ namespace revit_mcp_plugin.UI
                 _snapshot = new Snapshot { Window = window.Handle.ToInt64(), Host = host.ToInt64(), ProcessId = window.ProcessId,
                     StartTicks = process.StartTime.ToUniversalTime().Ticks, Owner = N.GetWindow(window.Handle, 4).ToInt64(),
                     Style = N.GetWindowLongPtr(window.Handle, -16).ToInt64(), ExtendedStyle = N.GetWindowLongPtr(window.Handle, -20).ToInt64(),
-                    WasVisible = N.IsWindowVisible(window.Handle), Placement = placement };
+                    WasVisible = N.IsWindowVisible(window.Handle), Placement = placement, PreserveNativeWindow = true };
             Directory.CreateDirectory(Path.GetDirectoryName(_recoveryFile));
             try { File.WriteAllText(_recoveryFile, JsonConvert.SerializeObject(_snapshot)); }
             catch { _snapshot = null; throw; }
             try
             {
-                // Save the original show state above, then genuinely restore the app.
-                // Reapplying the saved WS_MAXIMIZE/WS_MINIMIZE bits here undoes that
-                // restore and makes a full-screen app reject the smaller panel bounds.
+                // Restore from maximize/minimize, keeping all native frame/owner
+                // behavior. Forcing WS_POPUP breaks compositor-based app windows.
                 N.ShowWindow(window.Handle, 9);
-                long normalStyle = N.GetWindowLongPtr(window.Handle, -16).ToInt64();
-                Set(window.Handle, -16, (normalStyle & ~(0x00C00000L | 0x00040000L | 0x01000000L | 0x20000000L)) | 0x80000000L);
-                Set(window.Handle, -8, host.ToInt64());
                 Update(bounds);
-                RaiseWithHost(window.Handle, host);
+                if (!IsPaused) RaiseWithHost(window.Handle, host);
                 // Activation can be refused by Windows; visibility is checked separately.
                 SetForegroundWindow(window.Handle); // Only called by the user's attach button.
                 CaptureDiagnostic("attached", null);
             }
             catch (Exception ex) { CaptureDiagnostic("attach_failed", ex.Message); Release(); throw; }
         }
+        public void Resume(DesktopMirrorSession.Native.Rect bounds)
+        {
+            if (!IsAttached) throw new InvalidOperationException("Vinduet er lukket. Opdater listen.");
+            var source = new IntPtr(_snapshot.Window);
+            N.ShowWindow(source, 9); // Explicit user action only.
+            _hiddenByHost = false;
+            Update(bounds);
+            if (!IsPaused) { RaiseWithHost(source, new IntPtr(_snapshot.Host)); SetForegroundWindow(source); }
+        }
         public void Update(DesktopMirrorSession.Native.Rect bounds, bool allowZOrder = true)
         {
             if (_snapshot == null) return;
-            if (!SameWindow(_snapshot)) { Release(); return; }
+            if (!SameWindow(_snapshot) || !N.IsWindow(new IntPtr(_snapshot.Host))) { Release(); return; }
+            var source = new IntPtr(_snapshot.Window);
+            var host = new IntPtr(_snapshot.Host);
+            var rootOwner = DesktopMirrorSession.Native.GetAncestor(host, 3);
+            if (Unavailable(host) || (rootOwner != IntPtr.Zero && Unavailable(rootOwner)))
+            {
+                if (!_hiddenByHost && N.IsWindowVisible(source) && !DesktopMirrorSession.Native.IsIconic(source) && !IsZoomed(source))
+                { N.ShowWindow(source, 0); _hiddenByHost = true; }
+                Pause("Revit-panelet er skjult eller minimeret."); return;
+            }
+            bool resumedFromHost = _hiddenByHost;
+            if (_hiddenByHost) { N.ShowWindow(source, 4); _hiddenByHost = false; }
+            if (DesktopMirrorSession.Native.IsIconic(source)) { PauseSource("Codex er minimeret. Tryk Vis igen for at fortsætte."); return; }
+            if (IsZoomed(source)) { PauseSource("Codex er maksimeret. Tryk Vis igen for at tilpasse det til panelet."); return; }
+            if (!N.IsWindowVisible(source) || IsCloaked(source)) { PauseSource("Codex-vinduet er skjult. Tryk Vis igen eller åbn appen."); return; }
+            IsPaused = false; PausedReason = "";
             if (bounds.Width < 1 || bounds.Height < 1) throw new InvalidOperationException("Panelet er ikke klar endnu. Åbn det og prøv igen.");
             _lastBounds = bounds;
             using (new DesktopMirrorSession.Native.DpiScope())
             {
-                var source = new IntPtr(_snapshot.Window);
                 if (!GetWindowRect(source, out var current) || !Fits(current, bounds))
                 {
-                    Check(N.SetWindowPos(source, IntPtr.Zero, bounds.Left, bounds.Top, bounds.Width, bounds.Height, 0x0004 | 0x0010 | 0x0020 | 0x0200));
+                    Check(N.SetWindowPos(source, IntPtr.Zero, bounds.Left, bounds.Top, bounds.Width, bounds.Height, 0x0004 | 0x0010 | 0x0200));
                     Check(GetWindowRect(source, out current));
                     if (!Fits(current, bounds))
                     {
@@ -78,25 +100,47 @@ namespace revit_mcp_plugin.UI
                 // A docked/floating native host may cover an otherwise correctly sized
                 // window. Raise only while this host/app family is in the foreground.
                 IntPtr foreground = DesktopMirrorSession.Native.GetAncestor(DesktopMirrorSession.Native.GetForegroundWindow(), 2);
-                if (allowZOrder && BelongsTo(foreground, new IntPtr(_snapshot.Host)) && !IsVisiblyPlaced())
-                    RaiseWithHost(source, new IntPtr(_snapshot.Host));
+                bool activeFamily = BelongsTo(foreground, host) || BelongsTo(host, foreground) || BelongsTo(foreground, source);
+                if (allowZOrder && resumedFromHost) PlaceAboveHost(source, host);
+                else if (allowZOrder && activeFamily && !IsVisiblyPlaced()) RaiseWithHost(source, host);
             }
         }
+        private void Pause(string reason) { IsPaused = true; PausedReason = reason; }
+        private void PauseSource(string reason)
+        {
+            var source = new IntPtr(_snapshot.Window);
+            bool originalTopmost = (_snapshot.ExtendedStyle & 0x8) != 0;
+            bool currentTopmost = (N.GetWindowLongPtr(source, -20).ToInt64() & 0x8) != 0;
+            if (originalTopmost != currentTopmost)
+                Check(N.SetWindowPos(source, new IntPtr(originalTopmost ? -1 : -2), 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0010 | 0x0200));
+            Pause(reason);
+        }
+        private static bool IsCloaked(IntPtr window) => DwmGetWindowAttribute(window, 14, out int cloaked, 4) == 0 && cloaked != 0;
+        private static bool Unavailable(IntPtr window) => !N.IsWindowVisible(window) || DesktopMirrorSession.Native.IsIconic(window) || IsCloaked(window);
         private static void RaiseWithHost(IntPtr source, IntPtr host)
         {
-            // An owned top-level window does not automatically inherit a newly
-            // assigned owner's topmost band. Match that host only; Release restores
+            // Match the host's band only while placing the app; Release restores
             // the app's original band, so ordinary Revit stays ordinary as well.
             bool hostTopmost = (N.GetWindowLongPtr(host, -20).ToInt64() & 0x8) != 0;
             bool sourceTopmost = (N.GetWindowLongPtr(source, -20).ToInt64() & 0x8) != 0;
             IntPtr insertAfter = hostTopmost ? new IntPtr(-1) : sourceTopmost ? new IntPtr(-2) : IntPtr.Zero;
             Check(N.SetWindowPos(source, insertAfter, 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0010 | 0x0040 | 0x0200));
         }
+        private static void PlaceAboveHost(IntPtr source, IntPtr host)
+        {
+            // Re-show relative to the host, preserving any unrelated window above it.
+            IntPtr previous = N.GetWindow(host, 3); // GW_HWNDPREV
+            bool sameBand = (N.GetWindowLongPtr(source, -20).ToInt64() & 0x8) == (N.GetWindowLongPtr(host, -20).ToInt64() & 0x8);
+            if (previous == source && sameBand) return;
+            RaiseWithHost(source, host);
+            if (previous != source && N.IsWindow(previous) && !BelongsTo(previous, source))
+                Check(N.SetWindowPos(source, previous, 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0010 | 0x0040 | 0x0200));
+        }
         public bool IsVisiblyPlaced()
         {
-            if (!IsAttached) return false;
+            if (!IsAttached || IsPaused) return false;
             var source = new IntPtr(_snapshot.Window);
-            if (!N.IsWindowVisible(source) || DesktopMirrorSession.Native.IsIconic(source) || IsZoomed(source)) return false;
+            if (Unavailable(source) || IsZoomed(source)) return false;
             using (new DesktopMirrorSession.Native.DpiScope())
             {
                 if (!GetWindowRect(source, out var actual) || !Fits(actual, _lastBounds)) return false;
@@ -140,7 +184,9 @@ namespace revit_mcp_plugin.UI
                     LastDiagnostic = JsonConvert.SerializeObject(new { version = typeof(DesktopOverlayLease).Assembly.GetName().Version.ToString(),
                         utc = DateTime.UtcNow, action, error, source = source.ToInt64(), host = _snapshot?.Host,
                         expected = _lastBounds, actual, visible = N.IsWindowVisible(source), minimized = DesktopMirrorSession.Native.IsIconic(source),
-                        maximized = IsZoomed(source), owner = N.GetWindow(source, 4).ToInt64(), visuallyPlaced = IsVisiblyPlaced() }, Formatting.Indented);
+                        maximized = IsZoomed(source), owner = N.GetWindow(source, 4).ToInt64(), visuallyPlaced = IsVisiblyPlaced(),
+                        IsPaused, PausedReason, sourceMetadata = Metadata(source), hostMetadata = Metadata(_snapshot == null ? IntPtr.Zero : new IntPtr(_snapshot.Host)),
+                        foreground = DesktopMirrorSession.Native.GetForegroundWindow().ToInt64() }, Formatting.Indented);
                 }
             }
             catch { /* Diagnostics must never prevent releasing the app. */ }
@@ -150,6 +196,7 @@ namespace revit_mcp_plugin.UI
             if (_snapshot == null) return;
             Restore(_snapshot);
             _snapshot = null;
+            _hiddenByHost = false; IsPaused = false; PausedReason = "";
             File.Delete(_recoveryFile);
         }
         public void Recover()
@@ -176,16 +223,34 @@ namespace revit_mcp_plugin.UI
             var window = new IntPtr(snapshot.Window);
             IntPtr owner = new IntPtr(snapshot.Owner);
             if (!N.IsWindow(owner)) owner = IntPtr.Zero;
-            Set(window, -8, owner.ToInt64());
-            // An owned modal may currently disable the app. Preserve that live state.
-            long disabled = N.GetWindowLongPtr(window, -16).ToInt64() & 0x08000000L;
-            Set(window, -16, (snapshot.Style & ~0x08000000L) | disabled); Set(window, -20, snapshot.ExtendedStyle);
+            // Old 2.6/2.6.1 recovery records did mutate owner/frame; new leases don't.
+            if (!snapshot.PreserveNativeWindow)
+            {
+                Set(window, -8, owner.ToInt64());
+                long disabled = N.GetWindowLongPtr(window, -16).ToInt64() & 0x08000000L;
+                Set(window, -16, (snapshot.Style & ~0x08000000L) | disabled); Set(window, -20, snapshot.ExtendedStyle);
+            }
             var placement = snapshot.Placement;
             placement.Length = Marshal.SizeOf(typeof(N.WindowPlacement));
             Check(N.SetWindowPlacement(window, ref placement));
             IntPtr originalBand = new IntPtr((snapshot.ExtendedStyle & 0x8) != 0 ? -1 : -2);
             Check(N.SetWindowPos(window, originalBand, 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0010 | 0x0020 | 0x0200));
-            N.ShowWindow(window, snapshot.WasVisible ? placement.ShowCommand : 0);
+            // SetWindowPlacement has restored the show state. Re-show without an
+            // additional activating ShowWindow call during automatic panel cleanup.
+            int show = snapshot.PreserveNativeWindow ? (placement.ShowCommand == 2 ? 7 : 8) : placement.ShowCommand;
+            N.ShowWindow(window, snapshot.WasVisible ? show : 0);
+        }
+        private static object Metadata(IntPtr window)
+        {
+            var className = new System.Text.StringBuilder(256);
+            GetClassName(window, className, className.Capacity);
+            uint thread = N.GetWindowThreadProcessId(window, out uint pid);
+            var gui = new GuiThreadInfo { Size = Marshal.SizeOf(typeof(GuiThreadInfo)) };
+            bool available = thread != 0 && GetGUIThreadInfo(thread, ref gui);
+            return new { hwnd = window.ToInt64(), pid, thread, className = className.ToString(),
+                style = N.GetWindowLongPtr(window, -16).ToInt64().ToString("X"), extendedStyle = N.GetWindowLongPtr(window, -20).ToInt64().ToString("X"),
+                visible = N.IsWindowVisible(window), minimized = DesktopMirrorSession.Native.IsIconic(window), cloaked = IsCloaked(window),
+                guiAvailable = available, active = gui.Active.ToInt64(), focus = gui.Focus.ToInt64() };
         }
         private static void Set(IntPtr window, int index, long value)
         {
@@ -197,8 +262,13 @@ namespace revit_mcp_plugin.UI
         public sealed class Snapshot
         {
             public long Window, Host, Owner, Style, ExtendedStyle, StartTicks;
-            public int ProcessId; public bool WasVisible; public N.WindowPlacement Placement;
+            public int ProcessId; public bool WasVisible, PreserveNativeWindow; public N.WindowPlacement Placement;
         }
+        [StructLayout(LayoutKind.Sequential)] private struct GuiThreadInfo
+        { public int Size, Flags; public IntPtr Active, Focus, Capture, MenuOwner, MoveSize, Caret; public DesktopMirrorSession.Native.Rect CaretRect; }
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern int GetClassName(IntPtr window, System.Text.StringBuilder text, int capacity);
+        [DllImport("user32.dll")] private static extern bool GetGUIThreadInfo(uint thread, ref GuiThreadInfo info);
+        [DllImport("dwmapi.dll")] private static extern int DwmGetWindowAttribute(IntPtr window, int attribute, out int value, int size);
         [DllImport("user32.dll")] private static extern bool SetForegroundWindow(IntPtr window);
         [DllImport("user32.dll")] private static extern bool GetWindowRect(IntPtr window, out DesktopMirrorSession.Native.Rect bounds);
         [DllImport("user32.dll")] private static extern bool IsZoomed(IntPtr window);

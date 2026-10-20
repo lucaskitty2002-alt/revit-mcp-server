@@ -32,8 +32,10 @@ namespace revit_mcp_plugin.UI
                         Stop();
                         SetStatus("Codex-vinduet er lukket", "Åbn appen og opdater vindueslisten for at forbinde igen.", "info");
                     }
-                    else if (_overlay.IsVisiblyPlaced()) SetStatus("Codex er klar i Revit", "Brug appen normalt. Frigør sender den tilbage til skrivebordet.", "success");
-                    else SetStatus("Codex er placeret ved panelet", "Vinduet er i baggrunden. Vælg Revit eller frigør det og prøv igen.", "info");
+                    else if (_overlay.IsPaused) SetStatus("Vinduesplaceringen er sat på pause", _overlay.PausedReason, "info");
+                    else if (_overlay.IsVisiblyPlaced()) SetStatus("Codex-vinduet er placeret", "Klik i appens skrivefelt. Frigør sender vinduet tilbage til skrivebordet.", "info");
+                    else SetStatus("Codex er i baggrunden", "Vælg Revit eller tryk Vis igen for at hente vinduet frem.", "info");
+                    UpdateControls();
                 }
                 catch (Exception ex) { Fail(ex, "update_failed"); }
             };
@@ -94,8 +96,8 @@ namespace revit_mcp_plugin.UI
         {
             if (ShowButton == null || WindowPicker == null) return;
             bool attached = _overlay.HasLease;
-            ShowButton.IsEnabled = !_attaching && !attached && WindowPicker.SelectedItem is CodexDesktopWindow;
-            ShowButton.Content = _attaching ? "Åbner…" : "Vis i Revit";
+            ShowButton.IsEnabled = !_attaching && (attached || WindowPicker.SelectedItem is CodexDesktopWindow);
+            ShowButton.Content = _attaching ? "Åbner…" : attached ? "Vis igen" : "Vis i Revit";
             RefreshButton.IsEnabled = !_attaching;
             WindowPicker.IsEnabled = !_attaching && !attached;
             ReleaseButton.Visibility = attached || Surface.IsSharing ? Visibility.Visible : Visibility.Collapsed;
@@ -127,6 +129,12 @@ namespace revit_mcp_plugin.UI
         private async void Start_Click(object sender, RoutedEventArgs e)
         {
             if (_attaching) return;
+            if (_overlay.HasLease)
+            {
+                try { _overlay.Resume(ScreenBounds()); SaveDiagnostic("resumed", null); }
+                catch (Exception ex) { Fail(ex, "resume_failed"); }
+                return;
+            }
             if (!(WindowPicker.SelectedItem is CodexDesktopWindow window)) { SetStatus("Vælg et Codex-vindue", "Opdater listen, hvis vinduet ikke er vist.", "info"); return; }
             int operation = -1;
             try
@@ -142,8 +150,9 @@ namespace revit_mcp_plugin.UI
                 await System.Threading.Tasks.Task.Delay(200);
                 if (operation != _operation || !_overlay.HasLease) return;
                 _overlay.Update(ScreenBounds());
-                if (_overlay.IsVisiblyPlaced()) SetStatus("Codex er klar i Revit", "Appens vindue er synligt her. Brug chats, billeder og godkendelser som normalt.", "success");
-                else SetStatus("Codex er placeret ved panelet", "Windows har ikke bekræftet, at vinduet er synligt. Frigør det og prøv igen.", "info");
+                if (_overlay.IsPaused) SetStatus("Vinduesplaceringen er sat på pause", _overlay.PausedReason, "info");
+                else if (_overlay.IsVisiblyPlaced()) SetStatus("Codex-vinduet er placeret", "Placeringen er kontrolleret. Klik i appens skrivefelt for at bruge den.", "info");
+                else SetStatus("Codex er i baggrunden", "Windows har ikke bekræftet synligheden. Tryk Vis igen eller frigør vinduet.", "info");
                 SaveDiagnostic("attached", null);
             }
             catch (Exception ex) { Fail(ex, "attach_failed"); }
