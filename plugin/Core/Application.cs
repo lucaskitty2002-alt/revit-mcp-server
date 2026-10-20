@@ -19,15 +19,12 @@ namespace revit_mcp_plugin.Core
             McpLogger.Initialize(pluginDir);
             McpLogger.Info("Application", "Plugin starting");
 
-            // Auto-configure Claude Desktop on first run (silent, never crashes)
-            ClaudeDesktopConfigurator.EnsureConfigured();
-
             // Register Dockable Panel
             try
             {
                 application.RegisterDockablePane(
                     MCPDockablePaneProvider.PaneId,
-                    "MCP Server",
+                    "Codex for Revit",
                     new MCPDockablePaneProvider());
             }
             catch (Exception ex)
@@ -44,9 +41,9 @@ namespace revit_mcp_plugin.Core
             pushButtonData.LargeImage = new BitmapImage(new Uri("/RevitMCPPlugin;component/Core/Ressources/icon-32.png", UriKind.RelativeOrAbsolute));
             mcpPanel.AddItem(pushButtonData);
 
-            PushButtonData panelButtonData = new PushButtonData("ID_EXCMD_TOGGLE_MCP_PANEL", "MCP\r\n Panel",
+            PushButtonData panelButtonData = new PushButtonData("ID_EXCMD_TOGGLE_MCP_PANEL", "Codex\r\n Chat",
                 Assembly.GetExecutingAssembly().Location, "revit_mcp_plugin.Core.ToggleMCPPanel");
-            panelButtonData.ToolTip = "Show / Hide MCP monitoring panel";
+            panelButtonData.ToolTip = "Show / Hide Codex chat for the active Revit model";
             panelButtonData.Image = new BitmapImage(new Uri("/RevitMCPPlugin;component/Core/Ressources/panel-16.png", UriKind.RelativeOrAbsolute));
             panelButtonData.LargeImage = new BitmapImage(new Uri("/RevitMCPPlugin;component/Core/Ressources/panel-32.png", UriKind.RelativeOrAbsolute));
             mcpPanel.AddItem(panelButtonData);
@@ -63,6 +60,7 @@ namespace revit_mcp_plugin.Core
 
         public Result OnShutdown(UIControlledApplication application)
         {
+            MCPDockablePanel.Instance?.Shutdown();
             try
             {
                 if (SocketService.Instance.IsRunning)

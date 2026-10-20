@@ -211,8 +211,8 @@ function addSuggestions(response: any, suggestions: Array<{prompt: string, reaso
 
 The suggestion logic is inline in each tool — simple if/else based on the response data. No separate config file or abstraction. Keep it obvious and local.
 
-### Claude Behavior
-Claude reads `suggestedNextSteps` naturally because it's in the JSON response. No special MCP protocol changes needed. Claude will say something like: *"The model has a C health score with 45 warnings. Want me to show you the warnings? I also found 12 unused families that could be purged."*
+### Codex Behavior
+Codex reads `suggestedNextSteps` naturally because it's in the JSON response. No special MCP protocol changes needed. Codex will say something like: *"The model has a C health score with 45 warnings. Want me to show you the warnings? I also found 12 unused families that could be purged."*
 
 ---
 

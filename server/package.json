@@ -1,7 +1,7 @@
 {
     "name": "mcp-server-for-revit",
     "version": "2.2.0",
-    "description": "MCP server for interacting with Autodesk Revit through AI assistants like Claude",
+    "description": "MCP server for interacting with Autodesk Revit through AI assistants like Codex",
     "main": "./build/index.js",
     "type": "module",
     "bin": {
@@ -26,7 +26,7 @@
         "mcp",
         "revit",
         "autodesk",
-        "claude",
+        "codex",
         "ai",
         "bim",
         "architecture"

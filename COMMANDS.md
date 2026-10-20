@@ -32,13 +32,10 @@
 1. Build the plugin: `dotnet build plugin/RevitMCPPlugin.csproj -c "Debug R25"`
 2. Build the MCP server: `cd server && npm run build`
 3. Open Revit and click **"Revit MCP Switch"** in the ribbon
-4. Configure Claude Desktop to connect to the MCP server
+4. Register the MCP server with Codex using scripts/fix-mcp.ps1
 
 ### Chat Panel (inside Revit)
-The plugin includes a dockable chat panel accessible via **"MCP Panel"** in the ribbon.
-- Calls Anthropic API with 16 Revit tool definitions
-- Executes commands on the model via JSON-RPC (localhost:8080)
-- API key: set `ANTHROPIC_API_KEY` env var or create `%USERPROFILE%\.claude\api_key.txt`
+The plugin includes **Codex Chat** in the ribbon. It uses the installed Codex app-server and existing login, streams replies, and executes Revit tools through the plugin's active local TCP port.
 
 ---
 
@@ -681,13 +678,7 @@ These 15 tools were added based on research of the most commonly automated BIM t
 
 ## Chat Panel
 
-The dockable panel inside Revit provides a Claude-style chat interface:
-
-- **UI**: Light theme matching claude.ai (white background, pill-shaped input, Claude orange branding)
-- **API**: Calls Anthropic API (claude-sonnet-4-20250514) with 16 MCP tool definitions
-- **Execution**: When Claude decides to use a tool, it sends JSON-RPC to localhost:8080
-- **Multi-turn**: Supports up to 5 tool execution rounds per message
-- **Setup**: API key via `ANTHROPIC_API_KEY` env var or `~/.claude/api_key.txt`
+The **Codex for Revit** panel supports streamed replies, multiple tool calls, Stop, New chat, and export. Configure login, executable discovery, or an optional model under **Settings > Codex**. Each computer uses its own Codex sign-in.
 
 ### Example prompts for the chat panel:
 - "What project do I have open?"
@@ -724,11 +715,8 @@ Common causes:
 - Default port: 8080
 - Check Windows Firewall is not blocking localhost connections
 
-### Chat panel shows "API key not configured"
-Create the key file:
-```
-echo sk-ant-YOUR-KEY > %USERPROFILE%\.claude\api_key.txt
-```
+### Chat panel cannot connect to Codex
+Use **Settings > Codex > Check login**. Install Codex and sign in if needed. If automatic discovery fails, select codex.exe with Browse. Start a new chat after changing settings.
 
 ---
 

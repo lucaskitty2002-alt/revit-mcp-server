@@ -12,7 +12,7 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <!-- Top Bar - minimal like claude.ai -->
+        <!-- Top Bar - minimal like Codex -->
         <Border Grid.Row="0" Background="White" Padding="14,10" BorderBrush="#EDEBE8" BorderThickness="0,0,0,1">
             <Grid>
                 <Grid.ColumnDefinitions>
@@ -21,7 +21,7 @@
                 </Grid.ColumnDefinitions>
 
                 <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                    <TextBlock Text="Claude for Revit" Foreground="#1A1A1A" FontSize="14" FontWeight="SemiBold"/>
+                    <TextBlock Text="Codex for Revit" Foreground="#1A1A1A" FontSize="14" FontWeight="SemiBold"/>
                     <TextBlock Text="  ⌄" Foreground="#999" FontSize="12" VerticalAlignment="Center"/>
                 </StackPanel>
 
@@ -29,10 +29,10 @@
                     <Ellipse x:Name="StatusIndicator" Width="7" Height="7" Margin="0,0,5,0"/>
                     <TextBlock x:Name="StatusText" FontSize="11" VerticalAlignment="Center"/>
                     <TextBlock Text="  |  " Foreground="#DDD" FontSize="11"/>
-                    <TextBlock Text="New chat" Foreground="#D97757" FontSize="11"
+                    <TextBlock Text="New chat" Foreground="#202123" FontSize="11"
                                Cursor="Hand" MouseLeftButtonDown="ClearChat_Click"/>
                     <TextBlock Text="  |  " Foreground="#DDD" FontSize="11"/>
-                    <TextBlock Text="Export" Foreground="#D97757" FontSize="11"
+                    <TextBlock Text="Export" Foreground="#202123" FontSize="11"
                                Cursor="Hand" MouseLeftButtonDown="ExportChat_Click"/>
                     <TextBlock Text="&#xE9D9;" FontFamily="Segoe MDL2 Assets" FontSize="14"
                                Cursor="Hand" Foreground="#888" ToolTip="Verify Connection"
@@ -74,7 +74,7 @@
                                              VerticalScrollBarVisibility="Disabled"
                                              HorizontalScrollBarVisibility="Disabled"
                                              IsTabStop="False" Padding="0" Margin="0"
-                                             SelectionBrush="#D97757"/>
+                                             SelectionBrush="#202123"/>
                                 </StackPanel>
                             </Grid>
                         </Border>
@@ -93,11 +93,11 @@
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
                 <Border Grid.Column="0" Width="24" Height="24" CornerRadius="6"
-                        Background="#D97757" Margin="0,0,14,0">
+                        Background="#202123" Margin="0,0,14,0">
                     <TextBlock Text="C" Foreground="White" FontSize="11" FontWeight="SemiBold"
                                HorizontalAlignment="Center" VerticalAlignment="Center"/>
                 </Border>
-                <TextBlock Grid.Column="1" x:Name="TypingText" Text="Claude is thinking..."
+                <TextBlock Grid.Column="1" x:Name="TypingText" Text="Codex is thinking..."
                            Foreground="#999" FontSize="14" FontStyle="Italic" VerticalAlignment="Center"/>
                 <Border Grid.Column="2" CornerRadius="10" Padding="8,3" Margin="8,0,0,0"
                         Background="#F0EEEB" BorderBrush="#D4D1CC" BorderThickness="1"
@@ -140,7 +140,7 @@
             </ScrollViewer>
         </Border>
 
-        <!-- Input - claude.ai exact style -->
+        <!-- Input - Codex exact style -->
         <Border Grid.Row="4" Background="White" Padding="16,10,16,16">
             <Border Background="White" CornerRadius="22"
                     BorderBrush="#D4D1CC" BorderThickness="1"
@@ -174,14 +174,14 @@
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
 
-                        <!-- Spacer (model and planning mode are managed automatically by Claude) -->
+                        <!-- Spacer (model and planning mode are managed automatically by Codex) -->
                         <Border Grid.Column="0" />
 
                         <!-- Send button -->
                         <Button x:Name="SendButton" Grid.Column="1" Click="Send_Click"
                                 Background="Transparent" BorderThickness="0"
                                 Padding="0" Cursor="Hand" VerticalAlignment="Center">
-                            <Border Width="28" Height="28" CornerRadius="14" Background="#D97757">
+                            <Border Width="28" Height="28" CornerRadius="14" Background="#202123">
                                 <Path Data="M5,3L19,12L5,21Z" Fill="White"
                                       Width="9" Height="11" Stretch="Uniform"
                                       HorizontalAlignment="Center" VerticalAlignment="Center" Margin="1,0,0,0"/>

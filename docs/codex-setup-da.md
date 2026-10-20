@@ -1,22 +1,20 @@
-# Revit MCP i Codex
+# Codex i Revit 2026
 
-Denne fork bygger på [LuDattilo/revit-mcp-server](https://github.com/LuDattilo/revit-mcp-server), release v2.2.1, commit `2c33b848602ca56a4043de603f2914d6fdf0c104`.
-Den oprindelige MIT-licens og alle copyright-angivelser bevares i `LICENSE`. Det gælder også kopien installeret sammen med pluginet. Afhængighedernes licenser skal fortsat bevares.
+Panelet **Codex for Revit** bruger din installerede Codex og dit eksisterende login. Der skal ikke indtastes en API-nøgle i Revit.
 
-## Installation til Revit 2026
+1. Installer Codex, og log ind på din computer.
+2. Luk Revit.
+3. Pak Codex-versionens installationspakke ud.
+4. Kør `scripts/install-codex.ps1 -ReleaseZip <pakke.zip> -Force`.
+5. Start Revit, åbn en model, og aktivér **Add-Ins > Revit MCP Switch**.
+6. Åbn **Add-Ins > Codex Chat**.
 
-Hent `mcp-servers-for-revit-v2.2.1-Revit2026.zip` fra upstreams release. SHA256:
-`2c46ad557b69ac3b36fade076b16e36d7bbb7b1108a2d273eed60a5f2426749b`.
+Under **Settings > Codex** kan du kontrollere login, logge ind, vælge codex.exe manuelt eller angive en model. Et tomt modelfelt bruger din Codex-konfiguration. Start en ny chat efter ændringer.
 
-Luk Revit. Kør `scripts/install-codex.ps1 -ReleaseZip <zip> -CodexExe <codex.exe>` med de konkrete lokale stier.
-Scriptet installerer kun dette plugin i brugerens Revit 2026 Addins-mappe og registrerer `revit-mcp` i Codex. En eksisterende installation bliver ikke overskrevet. Andre plugins bevares. Claude-konfiguration og Anthropic-nøgler er ikke nødvendige for denne Codex-forbindelse.
+Panelet streamer svar og viser værktøjskald. **Stop** afbryder samtalen; modelændringer, som allerede er udført, bliver i Revit. **New chat** starter en ny samtale. Eksportér chatten, før du lukker Revit, hvis den skal gemmes.
 
-Start Revit, åbn en model og aktivér **Revit MCP Switch** under **Add-Ins**. Eventuel tillidsgodkendelse til tredjepartspluginet skal håndteres ved første start. Start derefter en ny Codex-chat for at indlæse den nye MCP-konfiguration.
+Installationen registrerer også `revit-mcp` i Codex til brug fra skrivebordsappen. Start en ny Codex-chat for at indlæse den.
 
-## Test
+Tidligere installationer sikkerhedskopieres under `%LOCALAPPDATA%/RevitMCP/Backups`. Andre Revit-plugins bevares. Konti, modeldata, nøgler og lokale indstillinger må ikke lægges på GitHub.
 
-Brug `scripts/test-codex-mcp.mjs NODE SERVER_ENTRY` til at kontrollere MCP-initialisering og værktøjslisten. Tilføj `--revit` for at teste en læseoperation mod den aktive model. NODE og SERVER_ENTRY findes under `revit_mcp_plugin/Commands/RevitMCPCommandSet/server`, henholdsvis `runtime/node.exe` og `build/index.js`.
-
-Værktøjslisten kan fungere uden Revit. Det beviser ikke forbindelse til en model. Læsetesten skal bestås separat; tegning og parameterændringer kræver derefter særskilt test på en testmodel.
-
-Pluginets TCP-forbindelse lytter på loopback. Arbejdsmodeller, database, rendering, nøgler og brugerens lokale konfiguration skal holdes ude af GitHub.
+Se [README](../README.md) for bygning og test. Projektet bygger på [originalprojektet](https://github.com/LuDattilo/revit-mcp-server); MIT-licensen og ophavsretsteksterne bevares.

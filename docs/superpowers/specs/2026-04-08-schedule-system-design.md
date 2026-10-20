@@ -125,7 +125,7 @@ Each shortcut wraps `create_schedule` with a preset and optional customization.
 ### `list_schedulable_fields`
 - **Parameters**: `categoryName` or `categoryId`, `scheduleType` (default "regular")
 - **Returns**: list of all available fields with name, type, parameter ID
-- **Purpose**: AI utility — lets Claude discover which fields exist before creating a schedule
+- **Purpose**: AI utility — lets Codex discover which fields exist before creating a schedule
 
 ## Implementation Files
 

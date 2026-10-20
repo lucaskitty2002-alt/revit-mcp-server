@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -22,9 +23,10 @@ namespace revit_mcp_plugin.UI
         private readonly ObservableCollection<PromptChip> _chips = new ObservableCollection<PromptChip>();
         private readonly DispatcherTimer _statusTimer;
         private readonly DispatcherTimer _chipsTimer;
-        private ClaudeRevitClient _client;
+        private CodexRevitClient _client;
         private bool _isProcessing;
-        private bool _lastStatus;
+        private bool? _lastStatus;
+        private ChatMessage _streamingMessage;
 
         private static readonly SolidColorBrush BrushOnline = new SolidColorBrush(Color.FromRgb(76, 175, 80));
         private static readonly SolidColorBrush BrushOffline = new SolidColorBrush(Color.FromRgb(244, 67, 54));
@@ -52,9 +54,9 @@ namespace revit_mcp_plugin.UI
             };
 
             AddMessage("assistant",
-                "Hi! I'm Claude, your assistant for Revit.\n\n" +
-                "I have direct access to the open model and can perform operations in real time. " +
-                "Ask me anything about the project or tell me what to create.");
+                "Hi! I'm Codex, your assistant for Revit.\n\n" +
+                "Enable Revit MCP Switch and sign in to Codex to work with the open model. " +
+                "Ask me about the project or tell me what to create.");
         }
 
         private void Page_Loaded(object sender, RoutedEventArgs e)
@@ -98,9 +100,10 @@ namespace revit_mcp_plugin.UI
             AddMessage("user", input);
 
             _isProcessing = true;
+            _streamingMessage = null;
             SendButton.IsEnabled = false;
             TypingIndicator.Visibility = Visibility.Visible;
-            TypingText.Text = "Claude is thinking...";
+            TypingText.Text = "Codex is working...";
 
             try
             {
@@ -112,9 +115,27 @@ namespace revit_mcp_plugin.UI
                 }
 
                 if (_client == null)
-                    _client = new ClaudeRevitClient();
+                {
+                    _client = new CodexRevitClient(Path.GetDirectoryName(typeof(MCPDockablePanel).Assembly.Location), () => SocketService.Instance.Port);
+                    _client.ToolExecuting += OnToolExecuting;
+                    _client.ToolCompleted += OnToolCompleted;
+                    _client.Progress += text => Dispatcher.BeginInvoke(new Action(() => TypingText.Text = text));
+                    _client.ReplyUpdated += text => Dispatcher.BeginInvoke(new Action(() =>
+                    {
+                        if (_streamingMessage == null)
+                        {
+                            _streamingMessage = new ChatMessage("assistant", text);
+                            _messages.Add(_streamingMessage);
+                        }
+                        else _streamingMessage.UpdateText(text);
+                        ChatScrollViewer.ScrollToEnd();
+                    }));
+                    _client.ConfirmAction = description => Dispatcher.InvokeAsync(() =>
+                        MessageBox.Show(description, "Codex requests permission", MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No) == MessageBoxResult.Yes).Task;
+                }
                 string response = await _client.SendMessage(input);
-                AddMessage("assistant", response);
+                if (_streamingMessage == null) AddMessage("assistant", response);
+                else _streamingMessage.UpdateText(response);
             }
             catch (Exception ex)
             {
@@ -288,7 +309,7 @@ namespace revit_mcp_plugin.UI
         {
             Dispatcher.BeginInvoke(new Action(() =>
             {
-                TypingText.Text = $"Claude is processing... (step {current}/{max})";
+                TypingText.Text = $"Codex is processing... (step {current}/{max})";
             }));
         }
 
@@ -326,9 +347,17 @@ namespace revit_mcp_plugin.UI
 
         private void ClearChat_Click(object sender, MouseButtonEventArgs e)
         {
+            if (_isProcessing) { AddSystemMessage("Press Stop and wait for the current reply before starting a new chat."); return; }
             _messages.Clear();
             _client?.ClearHistory();
             AddMessage("assistant", "Chat cleared. How can I help you?");
+        }
+
+        public void Shutdown()
+        {
+            _statusTimer.Stop();
+            _chipsTimer.Stop();
+            _client?.Dispose();
         }
 
         private void ExportChat_Click(object sender, MouseButtonEventArgs e)
@@ -402,7 +431,7 @@ namespace revit_mcp_plugin.UI
         private string BuildPlainText()
         {
             var sb = new StringBuilder();
-            sb.AppendLine($"Claude for Revit — {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
+            sb.AppendLine($"Codex for Revit — {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
             sb.AppendLine(new string('=', 60));
             sb.AppendLine();
             foreach (var msg in _messages)
@@ -417,7 +446,7 @@ namespace revit_mcp_plugin.UI
         private string BuildMarkdown()
         {
             var sb = new StringBuilder();
-            sb.AppendLine($"# Claude for Revit — {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
+            sb.AppendLine($"# Codex for Revit — {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
             sb.AppendLine();
             foreach (var msg in _messages)
             {
@@ -460,10 +489,16 @@ namespace revit_mcp_plugin.UI
         }
     }
 
-    public class ChatMessage
+    public class ChatMessage : INotifyPropertyChanged
     {
         public string Role { get; }
-        public string Text { get; }
+        public string Text { get; private set; }
+        public event PropertyChangedEventHandler PropertyChanged;
+        public void UpdateText(string text)
+        {
+            Text = text;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Text)));
+        }
         public string RoleLabel { get; }
         public string AvatarLetter { get; }
         public SolidColorBrush AvatarBackground { get; }
@@ -472,7 +507,7 @@ namespace revit_mcp_plugin.UI
         public SolidColorBrush RowBackground { get; }
         public FontFamily FontFamily { get; }
 
-        private static readonly SolidColorBrush ClaudeOrange = new SolidColorBrush(Color.FromRgb(217, 119, 87));
+        private static readonly SolidColorBrush CodexAccent = new SolidColorBrush(Color.FromRgb(32, 33, 35));
         private static readonly SolidColorBrush UserBlue = new SolidColorBrush(Color.FromRgb(88, 130, 207));
         private static readonly SolidColorBrush ToolGreen = new SolidColorBrush(Color.FromRgb(76, 175, 80));
         private static readonly SolidColorBrush ThinkingPurple = new SolidColorBrush(Color.FromRgb(147, 112, 219));
@@ -486,7 +521,7 @@ namespace revit_mcp_plugin.UI
             {
                 case "user":
                     RoleLabel = "You";
-                    AvatarLetter = "L";
+                    AvatarLetter = "U";
                     AvatarBackground = UserBlue;
                     RoleLabelColor = new SolidColorBrush(Color.FromRgb(26, 26, 26));
                     TextColor = new SolidColorBrush(Color.FromRgb(26, 26, 26));
@@ -530,9 +565,9 @@ namespace revit_mcp_plugin.UI
                     FontFamily = new FontFamily("Consolas");
                     break;
                 default:
-                    RoleLabel = "Claude";
+                    RoleLabel = "Codex";
                     AvatarLetter = "C";
-                    AvatarBackground = ClaudeOrange;
+                    AvatarBackground = CodexAccent;
                     RoleLabelColor = new SolidColorBrush(Color.FromRgb(26, 26, 26));
                     TextColor = new SolidColorBrush(Color.FromRgb(55, 53, 47));
                     RowBackground = new SolidColorBrush(Color.FromRgb(250, 249, 247));

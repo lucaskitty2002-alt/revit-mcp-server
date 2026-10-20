@@ -9,7 +9,7 @@ namespace revit_mcp_plugin.UI
     public partial class SettingsWindow : Window
     {
         private GeneralSettingsPage generalPage;
-        private ApiKeySettingsPage apiKeyPage;
+        private CodexSettingsPage codexPage;
         private CommandSetSettingsPage commandSetPage;
         private bool isInitialized = false;
 
@@ -19,7 +19,7 @@ namespace revit_mcp_plugin.UI
 
             // Initialize pages
             generalPage = new GeneralSettingsPage();
-            apiKeyPage = new ApiKeySettingsPage();
+            codexPage = new CodexSettingsPage();
             commandSetPage = new CommandSetSettingsPage();
 
             // Load default page (General)
@@ -36,9 +36,9 @@ namespace revit_mcp_plugin.UI
             {
                 ContentFrame.Navigate(generalPage);
             }
-            else if (NavListBox.SelectedItem == ApiKeyItem)
+            else if (NavListBox.SelectedItem == CodexItem)
             {
-                ContentFrame.Navigate(apiKeyPage);
+                ContentFrame.Navigate(codexPage);
             }
             else if (NavListBox.SelectedItem == CommandSetItem)
             {

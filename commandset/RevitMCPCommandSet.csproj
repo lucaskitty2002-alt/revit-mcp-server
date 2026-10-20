@@ -89,7 +89,7 @@
         <!-- Also copy as commandRegistry.json to Commands/ in Revit Addins -->
         <Copy SourceFiles="$(ProjectDir)..\command.json" DestinationFiles="$(RevitAddinsCommandsDir)commandRegistry.json" Condition="$(Configuration.Contains('Debug'))" />
 
-        <!-- Debug only: copy server/build to Revit Addins so Claude Desktop can reach it
+        <!-- Debug only: copy server/build to Revit Addins so Codex can reach it
              (only the compiled JS; node_modules stay in the repo and node from PATH is used) -->
         <ItemGroup Condition="$(Configuration.Contains('Debug'))">
             <ServerBuildFiles Include="$(ProjectDir)..\server\build\**\*.*" />
