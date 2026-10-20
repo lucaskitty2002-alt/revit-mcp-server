@@ -20,6 +20,15 @@ The installer makes a dated backup before replacement and preserves other add-in
 
 The installer also registers `revit-mcp` for use in the Codex desktop app. Start a new Codex desktop chat to load that connection.
 
+## Drawings, keyboard and usage
+
+- **Enter** sends the message; **Shift+Enter** adds a new line. Holding Enter does not send repeated messages.
+- Select **+ Attach drawing** to add PNG/JPEG images, including photographs of hand sketches. Remove any unwanted image before sending. Up to four images are supported per message, at most 10 MB each and 20 MB combined; images over 40 megapixels are rejected. PDF/CAD files must first be exported as PNG/JPEG pages.
+- Selected images are sent to your connected Codex account only when you send the message. Tell Codex what to create, provide units, scale, dimensions and heights, and identify the intended level. Codex is instructed to ask for missing dimensions and inspect available Revit types before making dependent model edits. Attaching an image alone asks for a description and your intent, without requesting model changes. Model creation depends on the sketch, available Revit tools and your answers; the result still needs human checking in Revit.
+- Open **Codex usage** below the input to see this chat's token total, the last turn's tokens and the connected account's remaining limits and local reset times, when Codex supplies them. Account quotas are shared across Codex sessions; they are separate from this chat's tokens and are not a cost estimate. Missing values are shown as unavailable. **Refresh usage** reads an updated account snapshot without model inference. Quotas are also read on connection and after replies, with pushed updates between them; there is no background polling timer.
+
+Attachment names are included in chat exports; image contents are not embedded in exports. The plugin keeps private working copies of selected images for the conversation and attempts to remove them on New chat or orderly panel shutdown. The original files are never modified. An interrupted/crashed Revit process can leave working copies under the scratch workspace's `attachments` directory; remove these locally when Revit is closed if needed. Codex manages its own handling of submitted images.
+
 ## Architecture
 
 ```text
@@ -55,7 +64,9 @@ dotnet run --project tests/codex-panel/CodexPanel.Tests.csproj
 dotnet run --project tests/codex-panel/CodexPanel.Tests.csproj -- --probe plugin/tool_schemas.json
 ```
 
-The first command tests the actual client with a simulated app-server and Revit TCP bridge: Unicode round trips, tool errors, unknown-tool rejection, failed turns, reconnection, default approval denial, new chat, cancellation, and process exit. The probe verifies the real installed Codex login and registration of all tool schemas without requesting model inference.
+The first command tests the actual client with a simulated app-server and Revit TCP bridge: Unicode round trips, tool errors, unknown-tool rejection, failed turns, reconnection, default approval denial, new chat, cancellation, process exit, native image inputs, attachment validation/cleanup and account/thread usage handling. The probe verifies the real installed Codex login, quota endpoint availability and registration of all tool schemas without requesting model inference.
+
+After installing in Revit, verify Enter sends once, Shift+Enter inserts a line, Stop works, selected drawings can be removed, usage expands without clipping, and a dimensioned test sketch can be discussed before making changes in a disposable model. Automated protocol tests do not validate an AI-generated 3D model.
 
 A live model read must be verified separately after opening Revit. Use **Verify Connection** in the panel or `scripts/test-codex-mcp.mjs NODE SERVER_ENTRY --revit`. Model edits require a test model and a separate functional test.
 

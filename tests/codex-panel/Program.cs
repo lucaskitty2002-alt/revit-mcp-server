@@ -15,6 +15,13 @@ if (args.FirstOrDefault() == "--probe")
     await server.StartAsync(CodexSettings.Load().FindExecutable(), CodexSettings.Workspace, timeout.Token);
     var account = await server.RequestAsync("account/read", new JObject(), timeout.Token);
     Console.WriteLine("Codex handshake passed; logged in: " + (account["account"]?.Type == JTokenType.Object));
+    try
+    {
+        var limits = await server.RequestAsync("account/rateLimits/read", new JObject(), timeout.Token);
+        Console.WriteLine("Real Codex account quota endpoint responded; account values are not printed.");
+        if (limits.Type != JTokenType.Object) throw new Exception("Unexpected quota response");
+    }
+    catch (InvalidOperationException) { Console.WriteLine("Account quotas unavailable on this Codex connection; chat can still work."); }
     var config = await server.RequestAsync("config/read", new JObject(), timeout.Token);
     var disabled = new JObject();
     foreach (var entry in (config["config"]?["mcp_servers"] as JObject ?? new JObject()).Properties())
@@ -78,6 +85,57 @@ var model = Task.Run(async () =>
 CodexRevitClient NewClient() => new CodexRevitClient(root, () => port, new CodexSettings { Executable = Environment.ProcessPath }, root);
 try
 {
+    var usage = new CodexUsage();
+    Assert(usage.Describe().Contains("unavailable") && !usage.Describe().Contains("0% left"), "Unknown usage is never displayed as zero or a full quota");
+    usage.SetLimits(JObject.Parse("{rateLimits:{primary:{usedPercent:90}},rateLimitsByLimitId:{codex:{primary:{usedPercent:25,windowDurationMins:300,resetsAt:1792500000}},other:{limitName:'Other model',primary:{usedPercent:10,windowDurationMins:15},secondary:null}}}"));
+    Assert(usage.Describe().Contains("75% left") && usage.Describe().Contains("Other model · 15m: 90% left") && !usage.Describe().Contains("10% left"), "Named quota pools take precedence over legacy data, with dynamic windows and reset times");
+    usage.SetLimits(JObject.Parse("{rateLimits:{primary:{usedPercent:120},secondary:{usedPercent:null}}}"));
+    Assert(usage.Describe().Contains("0% left") && !usage.Describe().Contains("100% left"), "Remaining percentage is clamped and null windows are unavailable");
+
+    string drawingPath = Path.Combine(root, "Håndtegning.png");
+    byte[] png = Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aD1sAAAAASUVORK5CYII=");
+    File.WriteAllBytes(drawingPath, png);
+    var drawing = CodexAttachment.Load(drawingPath);
+    File.WriteAllText(drawingPath, "changed after selection");
+    var badPath = Path.Combine(root, "fake.png");
+    File.WriteAllText(badPath, "not an image");
+    ExpectRejected(() => CodexAttachment.Load(badPath), "A renamed non-image is rejected");
+    ExpectRejected(() => CodexAttachment.Load(Path.Combine(root, "drawing.pdf")), "Unsupported file types are rejected with image-export guidance");
+    ExpectRejected(() => CodexAttachment.ValidateBatch(Enumerable.Repeat(drawing, 5).ToArray()), "Attachment count is bounded");
+    var bigPath = Path.Combine(root, "large.png");
+    using (var large = File.Create(bigPath)) { large.SetLength(CodexAttachment.MaxFileBytes + 1); }
+    ExpectRejected(() => CodexAttachment.Load(bigPath), "Oversize images are rejected before reading their contents");
+    using (var large = File.Create(bigPath)) { large.Write(png); large.SetLength(8 * 1024 * 1024); }
+    var bigDrawing = CodexAttachment.Load(bigPath);
+    ExpectRejected(() => CodexAttachment.ValidateBatch(new[] { bigDrawing, bigDrawing, bigDrawing }), "Combined attachment size is bounded");
+    using (var client = NewClient())
+    {
+        Assert(await client.SendMessage("drawing", new[] { drawing }) == "drawing received", "Selected image bytes reach Codex through native localImage input, preserving Unicode names");
+        string snapshot = Directory.GetFiles(Path.Combine(root, "attachments"), "*.png", SearchOption.AllDirectories).Single();
+        Assert(File.ReadAllBytes(snapshot).SequenceEqual(png), "Attachments are immutable snapshots and remain available for follow-up turns");
+        Assert(await client.SendMessage("", new[] { drawing }) == "image-only received", "Image-only messages ask for intent before making model changes");
+        client.ClearHistory();
+        Assert(!File.Exists(snapshot) && File.ReadAllText(drawingPath) == "changed after selection", "New chat cleans up only this client's snapshots and preserves original files");
+    }
+    using (var client = NewClient())
+    {
+        var updates = new List<string>();
+        client.UsageUpdated += text => updates.Add(text);
+        Assert(await client.SendMessage("usage") == "usage sent", "Usage events do not interrupt replies");
+        Assert(updates.Any(text => text.Contains("75% left")), "Account-scoped quota notifications are handled without a thread ID");
+        Assert(updates.Any(text => text.Contains("123 tokens") && text.Contains("23 tokens")), "Thread token totals and last-turn tokens are displayed separately");
+        Assert(!updates.Any(text => text.Contains("999 tokens")), "Usage from another thread is ignored");
+        client.ClearHistory();
+        Assert(updates.Last().Contains("token usage unavailable") && !updates.Last().Contains("123 tokens"), "New chat resets usage instead of showing stale account/thread values");
+    }
+    Environment.SetEnvironmentVariable("REVIT_CODEX_TEST_QUOTAS", "unsupported");
+    using (var client = NewClient())
+    {
+        string latest = "";
+        client.UsageUpdated += text => latest = text;
+        Assert(await client.SendMessage("hello") == "Hello from Codex" && latest.Contains("Account limits: unavailable"), "Unsupported quota endpoints do not prevent chatting");
+    }
+    Environment.SetEnvironmentVariable("REVIT_CODEX_TEST_QUOTAS", null);
     using (var client = NewClient())
     {
         Assert(await client.SendMessage("tool") == "Æblehuset 🏡", "Tool arguments and Unicode response make a complete round trip");
@@ -121,6 +179,13 @@ static void Assert(bool value, string message)
     Console.WriteLine("PASS: " + message);
 }
 
+static void ExpectRejected(Action action, string message)
+{
+    try { action(); }
+    catch (InvalidOperationException) { Assert(true, message); return; }
+    throw new Exception("FAIL: " + message);
+}
+
 static async Task FakeServer()
 {
     Console.InputEncoding = Encoding.UTF8;
@@ -146,6 +211,11 @@ static async Task FakeServer()
             case "initialize": Reply(id, new JObject { ["userAgent"] = "test" }); break;
             case "initialized": break;
             case "account/read": Reply(id, new JObject { ["account"] = Environment.GetEnvironmentVariable("REVIT_CODEX_TEST_ACCOUNT") == "none" ? null : new JObject { ["type"] = "chatgpt" } }); break;
+            case "account/rateLimits/read":
+                if (Environment.GetEnvironmentVariable("REVIT_CODEX_TEST_QUOTAS") == "unsupported")
+                    Send(new JObject { ["id"] = id, ["error"] = new JObject { ["code"] = -32601, ["message"] = "Unknown method" } });
+                else Reply(id, JObject.Parse("{rateLimits:{limitId:'codex',primary:{usedPercent:30,windowDurationMins:300,resetsAt:1792500000},secondary:null}}"));
+                break;
             case "config/read": Reply(id, new JObject { ["config"] = new JObject { ["mcp_servers"] = new JObject { ["other-server"] = new JObject { ["enabled"] = true } } } }); break;
             case "thread/start":
                 AssertSilently((bool?)parameters["config"]?["mcp_servers"]?["other-server"]?["enabled"] == false);
@@ -158,6 +228,21 @@ static async Task FakeServer()
                 if (mode == "crash") return;
                 if (mode == "wait") break;
                 if (mode == "failure") { Complete("", "failed"); break; }
+                if (mode == "drawing" || mode == "Describe the attached drawing and ask what I want to do with it. Do not edit Revit yet.")
+                {
+                    AssertSilently((string)parameters["input"]?[1]?["text"] == "Attached drawing (reference data): Håndtegning.png");
+                    AssertSilently((string)parameters["input"]?[2]?["type"] == "localImage");
+                    string path = (string)parameters["input"]?[2]?["path"];
+                    AssertSilently(File.ReadAllBytes(path).Take(8).SequenceEqual(new byte[] { 137, 80, 78, 71, 13, 10, 26, 10 }));
+                    Complete(mode == "drawing" ? "drawing received" : "image-only received"); break;
+                }
+                if (mode == "usage")
+                {
+                    Notify("account/rateLimits/updated", JObject.Parse("{rateLimits:{limitId:'codex',primary:{usedPercent:25,windowDurationMins:300,resetsAt:1792500000}}}"));
+                    Notify("thread/tokenUsage/updated", JObject.Parse("{threadId:'other-thread',turnId:'turn-test',tokenUsage:{total:{totalTokens:999}}}"));
+                    Notify("thread/tokenUsage/updated", JObject.Parse("{threadId:'thread-test',turnId:'turn-test',tokenUsage:{total:{totalTokens:123},last:{totalTokens:23}}}"));
+                    Complete("usage sent"); break;
+                }
                 if (mode == "stream")
                 {
                     Notify("item/agentMessage/delta", new JObject { ["threadId"] = "thread-test", ["itemId"] = "message-1", ["delta"] = "Streamed " });

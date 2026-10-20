@@ -9,6 +9,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using Newtonsoft.Json.Linq;
 using revit_mcp_plugin.Core;
@@ -21,6 +22,7 @@ namespace revit_mcp_plugin.UI
         private static MCPDockablePanel _instance;
         private readonly ObservableCollection<ChatMessage> _messages = new ObservableCollection<ChatMessage>();
         private readonly ObservableCollection<PromptChip> _chips = new ObservableCollection<PromptChip>();
+        private readonly ObservableCollection<CodexAttachment> _attachments = new ObservableCollection<CodexAttachment>();
         private readonly DispatcherTimer _statusTimer;
         private readonly DispatcherTimer _chipsTimer;
         private CodexRevitClient _client;
@@ -39,6 +41,7 @@ namespace revit_mcp_plugin.UI
             InitializeComponent();
             _instance = this;
             ChatMessages.ItemsSource = _messages;
+            AttachmentList.ItemsSource = _attachments;
 
             _statusTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
             _statusTimer.Tick += (s, e) => UpdateStatus();
@@ -84,24 +87,76 @@ namespace revit_mcp_plugin.UI
 
         private void ChatInput_KeyDown(object sender, KeyEventArgs e)
         {
-            if (e.Key == Key.Enter && (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control && !_isProcessing)
+            if (e.Key == Key.Enter && (Keyboard.Modifiers & ModifierKeys.Shift) == 0)
             {
-                Send_Click(sender, e);
                 e.Handled = true;
+                if (!_isProcessing && !e.IsRepeat) Send_Click(sender, e);
             }
+        }
+
+        private void AttachDrawing_Click(object sender, RoutedEventArgs e)
+        {
+            if (_isProcessing) return;
+            var dialog = new Microsoft.Win32.OpenFileDialog
+            {
+                Title = "Attach drawings to Codex", Multiselect = true,
+                Filter = "Drawings (*.png;*.jpg;*.jpeg)|*.png;*.jpg;*.jpeg", CheckFileExists = true
+            };
+            if (dialog.ShowDialog() != true) return;
+            try
+            {
+                var added = dialog.FileNames.Select(CodexAttachment.Load).ToArray();
+                CodexAttachment.ValidateBatch(_attachments.Concat(added).ToArray());
+                foreach (var attachment in added)
+                {
+                    using (var stream = attachment.OpenRead())
+                    {
+                        var image = BitmapDecoder.Create(stream, BitmapCreateOptions.None, BitmapCacheOption.OnLoad).Frames[0];
+                        if ((long)image.PixelWidth * image.PixelHeight > 40000000)
+                            throw new InvalidOperationException("Drawings must be at most 40 megapixels. Resize this image first.");
+                    }
+                }
+                foreach (var attachment in added) _attachments.Add(attachment);
+                ChatInput.Focus();
+            }
+            catch (Exception ex) { MessageBox.Show(ex.Message, "Cannot attach drawing", MessageBoxButton.OK, MessageBoxImage.Information); }
+        }
+
+        private void RemoveAttachment_Click(object sender, RoutedEventArgs e)
+        {
+            if (!_isProcessing && sender is Button button && button.Tag is CodexAttachment attachment) _attachments.Remove(attachment);
+        }
+
+        private async void RefreshUsage_Click(object sender, RoutedEventArgs e)
+        {
+            if (_client == null) { UsageText.Text = "Send a message to connect to your Codex account first."; return; }
+            if (_isProcessing) return;
+            RefreshUsageButton.IsEnabled = false;
+            try { await _client.RefreshUsageAsync(); }
+            finally { RefreshUsageButton.IsEnabled = true; }
         }
 
         private async void Send_Click(object sender, RoutedEventArgs e)
         {
             string input = ChatInput.Text?.Trim();
-            if (string.IsNullOrEmpty(input) || _isProcessing) return;
+            if ((string.IsNullOrEmpty(input) && _attachments.Count == 0) || _isProcessing) return;
+            if (!Core.SocketService.Instance.IsRunning)
+            {
+                AddMessage("assistant", "The MCP server is not running. Click \"Revit MCP Switch\" in the ribbon to start it, then send your message again.");
+                return;
+            }
+            var attachments = _attachments.ToArray();
+            CodexAttachment.ValidateBatch(attachments);
 
             ChatInput.Text = "";
-            AddMessage("user", input);
+            _attachments.Clear();
+            AddMessage("user", input + (attachments.Length == 0 ? "" : "\n\nAttached drawings:\n" + string.Join("\n", attachments.Select(a => a.Label))));
 
             _isProcessing = true;
             _streamingMessage = null;
             SendButton.IsEnabled = false;
+            AttachButton.IsEnabled = false;
+            RefreshUsageButton.IsEnabled = false;
             TypingIndicator.Visibility = Visibility.Visible;
             TypingText.Text = "Codex is working...";
 
@@ -120,6 +175,7 @@ namespace revit_mcp_plugin.UI
                     _client.ToolExecuting += OnToolExecuting;
                     _client.ToolCompleted += OnToolCompleted;
                     _client.Progress += text => Dispatcher.BeginInvoke(new Action(() => TypingText.Text = text));
+                    _client.UsageUpdated += text => Dispatcher.BeginInvoke(new Action(() => UsageText.Text = text));
                     _client.ReplyUpdated += text => Dispatcher.BeginInvoke(new Action(() =>
                     {
                         if (_streamingMessage == null)
@@ -133,7 +189,7 @@ namespace revit_mcp_plugin.UI
                     _client.ConfirmAction = description => Dispatcher.InvokeAsync(() =>
                         MessageBox.Show(description, "Codex requests permission", MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No) == MessageBoxResult.Yes).Task;
                 }
-                string response = await _client.SendMessage(input);
+                string response = await _client.SendMessage(input, attachments);
                 if (_streamingMessage == null) AddMessage("assistant", response);
                 else _streamingMessage.UpdateText(response);
             }
@@ -145,6 +201,8 @@ namespace revit_mcp_plugin.UI
             {
                 _isProcessing = false;
                 SendButton.IsEnabled = true;
+                AttachButton.IsEnabled = true;
+                RefreshUsageButton.IsEnabled = true;
                 TypingIndicator.Visibility = Visibility.Collapsed;
             }
         }
@@ -350,6 +408,8 @@ namespace revit_mcp_plugin.UI
             if (_isProcessing) { AddSystemMessage("Press Stop and wait for the current reply before starting a new chat."); return; }
             _messages.Clear();
             _client?.ClearHistory();
+            _attachments.Clear();
+            ChatInput.Clear();
             AddMessage("assistant", "Chat cleared. How can I help you?");
         }
 

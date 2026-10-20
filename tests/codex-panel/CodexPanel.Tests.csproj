@@ -8,5 +8,7 @@
     <Compile Include="../../plugin/UI/CodexAppServer.cs" Link="CodexAppServer.cs" />
     <Compile Include="../../plugin/UI/CodexRevitClient.cs" Link="CodexRevitClient.cs" />
     <Compile Include="../../plugin/UI/CodexSettings.cs" Link="CodexSettings.cs" />
+    <Compile Include="../../plugin/UI/CodexAttachment.cs" Link="CodexAttachment.cs" />
+    <Compile Include="../../plugin/UI/CodexUsage.cs" Link="CodexUsage.cs" />
   </ItemGroup>
 </Project>
