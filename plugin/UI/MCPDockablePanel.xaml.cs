@@ -1,639 +1,103 @@
 using System;
-using System.Collections.Generic;
-using System.Collections.ObjectModel;
-using System.ComponentModel;
-using System.IO;
-using System.Linq;
-using System.Text;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
 using System.Windows.Threading;
-using Newtonsoft.Json.Linq;
 using revit_mcp_plugin.Core;
-using revit_mcp_plugin.Helpers;
 
 namespace revit_mcp_plugin.UI
 {
     public partial class MCPDockablePanel : Page
     {
-        private static MCPDockablePanel _instance;
-        private readonly ObservableCollection<ChatMessage> _messages = new ObservableCollection<ChatMessage>();
-        private readonly ObservableCollection<PromptChip> _chips = new ObservableCollection<PromptChip>();
-        private readonly ObservableCollection<CodexAttachment> _attachments = new ObservableCollection<CodexAttachment>();
+        public static MCPDockablePanel Instance { get; private set; }
         private readonly DispatcherTimer _statusTimer;
-        private readonly DispatcherTimer _chipsTimer;
-        private CodexRevitClient _client;
-        private bool _isProcessing;
-        private bool? _lastStatus;
-        private ChatMessage _streamingMessage;
-
-        private static readonly SolidColorBrush BrushOnline = new SolidColorBrush(Color.FromRgb(76, 175, 80));
-        private static readonly SolidColorBrush BrushOffline = new SolidColorBrush(Color.FromRgb(244, 67, 54));
-        private static readonly SolidColorBrush BrushOfflineText = new SolidColorBrush(Color.FromRgb(136, 136, 136));
-
-        public static MCPDockablePanel Instance => _instance;
-
         public MCPDockablePanel()
         {
             InitializeComponent();
-            _instance = this;
-            ChatMessages.ItemsSource = _messages;
-            AttachmentList.ItemsSource = _attachments;
-
+            Instance = this;
+            DesktopHost.Status += text => StatusText.Text = text;
             _statusTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
-            _statusTimer.Tick += (s, e) => UpdateStatus();
-
-            PromptChips.ItemsSource = _chips;
-            _chipsTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(4) };
-            _chipsTimer.Tick += (s, e) => UpdateChips();
-
-            ChatInput.TextChanged += (s, e) =>
-            {
-                Placeholder.Visibility = string.IsNullOrEmpty(ChatInput.Text)
-                    ? Visibility.Visible : Visibility.Collapsed;
-            };
-
-            AddMessage("assistant",
-                "Hi! I'm Codex, your assistant for Revit.\n\n" +
-                "Enable Revit MCP Switch and sign in to Codex to work with the open model. " +
-                "Ask me about the project or tell me what to create.");
+            _statusTimer.Tick += (sender, e) => UpdateStatus();
         }
-
         private void Page_Loaded(object sender, RoutedEventArgs e)
         {
             _statusTimer.Start();
-            _chipsTimer.Start();
             UpdateStatus();
-            UpdateChips();
-            ChatInput.Focus();
+            if (!DesktopHost.IsAttached) RefreshWindows();
         }
-
+        private void Page_Unloaded(object sender, RoutedEventArgs e) { _statusTimer.Stop(); ReleaseWindow(); }
+        private void Page_IsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
+        {
+            if (!(bool)e.NewValue) { _statusTimer?.Stop(); ReleaseWindow(); }
+            else if (IsLoaded) _statusTimer?.Start();
+        }
         private void UpdateStatus()
         {
+            try { RevitStatus.Text = SocketService.Instance.IsRunning ? "Revit MCP is online. Use the revit-mcp tools from Codex." : "Revit MCP is offline. Enable Revit MCP Switch for model tools."; }
+            catch { RevitStatus.Text = "Enable Revit MCP Switch to connect model tools."; }
+            if (DesktopHost.Visibility == Visibility.Visible && !DesktopHost.IsAttached)
+            {
+                ReleaseWindow();
+                StatusText.Text = "The Codex window closed or moved. Refresh windows to select it again.";
+            }
+        }
+        private void RefreshWindows()
+        {
             try
             {
-                bool running = Core.SocketService.Instance.IsRunning;
-                if (running == _lastStatus) return;
-                _lastStatus = running;
-                StatusIndicator.Fill = running ? BrushOnline : BrushOffline;
-                StatusText.Text = running ? "MCP Online" : "MCP Offline";
-                StatusText.Foreground = running ? BrushOnline : BrushOfflineText;
+                var windows = DesktopWindowLease.FindCodexWindows();
+                WindowPicker.ItemsSource = windows;
+                if (windows.Count > 0) WindowPicker.SelectedIndex = 0;
+                StatusText.Text = windows.Count == 0 ? "No Codex desktop window found. Open Codex, then refresh. Run Codex and Revit with the same permissions." : "Select a Codex window and choose Show in Revit.";
             }
-            catch { }
+            catch (Exception ex) { StatusText.Text = ex.Message; }
         }
-
-        private void ChatInput_KeyDown(object sender, KeyEventArgs e)
+        private void OpenCodex_Click(object sender, RoutedEventArgs e)
         {
-            if (e.Key == Key.Enter && (Keyboard.Modifiers & ModifierKeys.Shift) == 0)
-            {
-                e.Handled = true;
-                if (!_isProcessing && !e.IsRepeat) Send_Click(sender, e);
-            }
+            try { DesktopWindowLease.LaunchCodex(); StatusText.Text = "Opening Codex. Once its window is ready, choose Refresh windows."; }
+            catch (Exception ex) { StatusText.Text = "Codex could not be opened: " + ex.Message; }
         }
-
-        private void AttachDrawing_Click(object sender, RoutedEventArgs e)
+        private void Refresh_Click(object sender, RoutedEventArgs e) { if (!DesktopHost.IsAttached) RefreshWindows(); }
+        private async void Attach_Click(object sender, RoutedEventArgs e)
         {
-            if (_isProcessing) return;
-            var dialog = new Microsoft.Win32.OpenFileDialog
-            {
-                Title = "Attach drawings to Codex", Multiselect = true,
-                Filter = "Drawings (*.png;*.jpg;*.jpeg)|*.png;*.jpg;*.jpeg", CheckFileExists = true
-            };
-            if (dialog.ShowDialog() != true) return;
-            try
-            {
-                var added = dialog.FileNames.Select(CodexAttachment.Load).ToArray();
-                CodexAttachment.ValidateBatch(_attachments.Concat(added).ToArray());
-                foreach (var attachment in added)
-                {
-                    using (var stream = attachment.OpenRead())
-                    {
-                        var image = BitmapDecoder.Create(stream, BitmapCreateOptions.None, BitmapCacheOption.OnLoad).Frames[0];
-                        if ((long)image.PixelWidth * image.PixelHeight > 40000000)
-                            throw new InvalidOperationException("Drawings must be at most 40 megapixels. Resize this image first.");
-                    }
-                }
-                foreach (var attachment in added) _attachments.Add(attachment);
-                ChatInput.Focus();
-            }
-            catch (Exception ex) { MessageBox.Show(ex.Message, "Cannot attach drawing", MessageBoxButton.OK, MessageBoxImage.Information); }
-        }
-
-        private void RemoveAttachment_Click(object sender, RoutedEventArgs e)
-        {
-            if (!_isProcessing && sender is Button button && button.Tag is CodexAttachment attachment) _attachments.Remove(attachment);
-        }
-
-        private async void RefreshUsage_Click(object sender, RoutedEventArgs e)
-        {
-            if (_client == null) { UsageText.Text = "Send a message to connect to your Codex account first."; return; }
-            if (_isProcessing) return;
-            RefreshUsageButton.IsEnabled = false;
-            try { await _client.RefreshUsageAsync(); }
-            finally { RefreshUsageButton.IsEnabled = true; }
-        }
-
-        private async void Send_Click(object sender, RoutedEventArgs e)
-        {
-            string input = ChatInput.Text?.Trim();
-            if ((string.IsNullOrEmpty(input) && _attachments.Count == 0) || _isProcessing) return;
-            if (!Core.SocketService.Instance.IsRunning)
-            {
-                AddMessage("assistant", "The MCP server is not running. Click \"Revit MCP Switch\" in the ribbon to start it, then send your message again.");
-                return;
-            }
-            var attachments = _attachments.ToArray();
-            CodexAttachment.ValidateBatch(attachments);
-
-            ChatInput.Text = "";
-            _attachments.Clear();
-            AddMessage("user", input + (attachments.Length == 0 ? "" : "\n\nAttached drawings:\n" + string.Join("\n", attachments.Select(a => a.Label))));
-
-            _isProcessing = true;
-            _streamingMessage = null;
-            SendButton.IsEnabled = false;
+            if (DesktopHost.IsAttached) return;
+            if (!(WindowPicker.SelectedItem is CodexDesktopWindow window)) { StatusText.Text = "Select a Codex window first."; return; }
             AttachButton.IsEnabled = false;
-            RefreshUsageButton.IsEnabled = false;
-            TypingIndicator.Visibility = Visibility.Visible;
-            TypingText.Text = "Codex is working...";
-
             try
             {
-                if (!Core.SocketService.Instance.IsRunning)
-                {
-                    AddMessage("assistant",
-                        "The MCP server is not running. Click \"Revit MCP Switch\" in the ribbon to start it.");
-                    return;
-                }
-
-                if (_client == null)
-                {
-                    _client = new CodexRevitClient(Path.GetDirectoryName(typeof(MCPDockablePanel).Assembly.Location), () => SocketService.Instance.Port);
-                    _client.ToolExecuting += OnToolExecuting;
-                    _client.ToolCompleted += OnToolCompleted;
-                    _client.Progress += text => Dispatcher.BeginInvoke(new Action(() => TypingText.Text = text));
-                    _client.UsageUpdated += text => Dispatcher.BeginInvoke(new Action(() => UsageText.Text = text));
-                    _client.ReplyUpdated += text => Dispatcher.BeginInvoke(new Action(() =>
-                    {
-                        if (_streamingMessage == null)
-                        {
-                            _streamingMessage = new ChatMessage("assistant", text);
-                            _messages.Add(_streamingMessage);
-                        }
-                        else _streamingMessage.UpdateText(text);
-                        ChatScrollViewer.ScrollToEnd();
-                    }));
-                    _client.ConfirmAction = description => Dispatcher.InvokeAsync(() =>
-                        MessageBox.Show(description, "Codex requests permission", MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No) == MessageBoxResult.Yes).Task;
-                }
-                string response = await _client.SendMessage(input, attachments);
-                if (_streamingMessage == null) AddMessage("assistant", response);
-                else _streamingMessage.UpdateText(response);
+                Instructions.Visibility = Visibility.Collapsed;
+                DesktopHost.Visibility = Visibility.Visible;
+                await Dispatcher.InvokeAsync(() => { DesktopHost.UpdateLayout(); DesktopHost.Attach(window); }, DispatcherPriority.Loaded);
+                WindowPicker.IsEnabled = false;
+                RefreshButton.IsEnabled = false;
             }
             catch (Exception ex)
             {
-                AddMessage("assistant", $"An error occurred: {ex.Message}");
+                DesktopHost.Visibility = Visibility.Collapsed;
+                Instructions.Visibility = Visibility.Visible;
+                StatusText.Text = ex.Message;
             }
-            finally
-            {
-                _isProcessing = false;
-                SendButton.IsEnabled = true;
-                AttachButton.IsEnabled = true;
-                RefreshUsageButton.IsEnabled = true;
-                TypingIndicator.Visibility = Visibility.Collapsed;
-            }
+            finally { AttachButton.IsEnabled = true; }
         }
-
-        private void UpdateChips()
+        public void ReleaseWindow()
         {
+            if (DesktopHost == null || StatusText == null) return;
             try
             {
-                if (!Core.SocketService.Instance.IsRunning)
-                {
-                    _chips.Clear();
-                    ChipsBar.Visibility = Visibility.Collapsed;
-                    return;
-                }
-
-                var uiApp = Core.SocketService.Instance.UiApplication;
-                if (uiApp?.ActiveUIDocument == null)
-                {
-                    SetChips(new[] { new PromptChip("Open a project to get started") });
-                    return;
-                }
-
-                var doc = uiApp.ActiveUIDocument.Document;
-                var activeView = doc.ActiveView;
-                var selection = uiApp.ActiveUIDocument.Selection;
-                int selectedCount = selection.GetElementIds().Count;
-
-                var chips = new List<PromptChip>();
-
-                // Selection-based chips (highest priority)
-                if (selectedCount > 0)
-                {
-                    chips.Add(new PromptChip($"Show parameters ({selectedCount} selected)", "Show me the parameters of the selected elements"));
-                    chips.Add(new PromptChip("Isolate in view", "Isolate the selected elements in the current view"));
-                    chips.Add(new PromptChip("Measure distance", "Measure the distance between the selected elements"));
-                }
-
-                // View-type chips
-                if (activeView is Autodesk.Revit.DB.ViewPlan)
-                {
-                    bool hasRooms = new Autodesk.Revit.DB.FilteredElementCollector(doc, activeView.Id)
-                        .OfCategory(Autodesk.Revit.DB.BuiltInCategory.OST_Rooms)
-                        .GetElementCount() > 0;
-
-                    if (hasRooms)
-                    {
-                        chips.Add(new PromptChip("Tag all rooms", "Tag all rooms in the current view"));
-                        chips.Add(new PromptChip("Color rooms by department", "Create a color legend for rooms by department"));
-                        chips.Add(new PromptChip("Export room data", "Export all room data"));
-                        chips.Add(new PromptChip("Create callouts for rooms", "Create callout views for all rooms on this level"));
-                    }
-                    else
-                    {
-                        chips.Add(new PromptChip("Check model health", "Check the health of this model"));
-                        chips.Add(new PromptChip("Show warnings", "Show me all model warnings"));
-                        chips.Add(new PromptChip("Export to Excel", "Export all elements in this view to Excel"));
-                    }
-                }
-                else if (activeView is Autodesk.Revit.DB.View3D)
-                {
-                    chips.Add(new PromptChip("Check model health", "Check the health of this model"));
-                    chips.Add(new PromptChip("Detect clashes", "Check for clashes between structural elements and MEP"));
-                    chips.Add(new PromptChip("Section box from selection", "Create a section box around the selected elements"));
-                    chips.Add(new PromptChip("Audit families", "Audit all families in this project"));
-                }
-                else if (activeView is Autodesk.Revit.DB.ViewSheet)
-                {
-                    chips.Add(new PromptChip("Align viewports", "Align all viewports on this sheet"));
-                    chips.Add(new PromptChip("Add revision", "Add a revision to this sheet"));
-                    chips.Add(new PromptChip("Export to PDF", "Export all sheets to PDF"));
-                    chips.Add(new PromptChip("Duplicate sheet", "Duplicate this sheet with all content"));
-                }
-                else if (activeView is Autodesk.Revit.DB.ViewSchedule)
-                {
-                    chips.Add(new PromptChip("Export schedule to CSV", "Export this schedule to CSV"));
-                    chips.Add(new PromptChip("Export to Excel", "Export this schedule to Excel"));
-                }
-                else if (activeView is Autodesk.Revit.DB.ViewSection || activeView is Autodesk.Revit.DB.ViewDrafting)
-                {
-                    chips.Add(new PromptChip("Add dimensions", "Create dimensions in this view"));
-                    chips.Add(new PromptChip("Add text note", "Add a text note in this view"));
-                    chips.Add(new PromptChip("Export to PDF", "Export all sheets to PDF"));
-                }
-
-                // Fallback if no view-specific chips were added
-                if (chips.Count == 0 || (selectedCount == 0 && chips.Count < 3))
-                {
-                    chips.Add(new PromptChip("Model statistics", "How many elements are in this model? Give me statistics by category"));
-                    chips.Add(new PromptChip("Check model health", "Check the health of this model"));
-                    chips.Add(new PromptChip("Export to Excel", "Export all elements to Excel"));
-                    chips.Add(new PromptChip("List warnings", "Show me all model warnings"));
-                }
-
-                // Limit to 6
-                SetChips(chips.Take(6));
+                DesktopHost.Release();
+                DesktopHost.Visibility = Visibility.Collapsed;
+                Instructions.Visibility = Visibility.Visible;
+                WindowPicker.IsEnabled = true;
+                RefreshButton.IsEnabled = true;
             }
-            catch
-            {
-                // Never crash the panel due to chip updates
-                _chips.Clear();
-                ChipsBar.Visibility = Visibility.Collapsed;
-            }
+            catch (Exception ex) { StatusText.Text = "Could not release Codex: " + ex.Message; }
         }
-
-        private void SetChips(IEnumerable<PromptChip> chips)
+        private void Release_Click(object sender, RoutedEventArgs e) => ReleaseWindow();
+        private void Recover_Click(object sender, RoutedEventArgs e)
         {
-            _chips.Clear();
-            foreach (var chip in chips)
-                _chips.Add(chip);
-            ChipsBar.Visibility = _chips.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+            try { DesktopHost.Recover(); ReleaseWindow(); RefreshWindows(); }
+            catch (Exception ex) { StatusText.Text = ex.Message; }
         }
-
-        private void Chip_Click(object sender, MouseButtonEventArgs e)
-        {
-            if (sender is FrameworkElement fe && fe.DataContext is PromptChip chip && !_isProcessing)
-            {
-                ChatInput.Text = chip.Prompt;
-                Send_Click(sender, e);
-            }
-        }
-
-        private void AddMessage(string role, string text)
-        {
-            Dispatcher.BeginInvoke(new Action(() =>
-            {
-                _messages.Add(new ChatMessage(role, text));
-                ChatScrollViewer.ScrollToEnd();
-            }));
-        }
-
-        public void OnToolExecuting(string toolName)
-        {
-            Dispatcher.BeginInvoke(new Action(() =>
-            {
-                TypingText.Text = $"Running {toolName}...";
-                _messages.Add(new ChatMessage("tool", $"⚡ {toolName}"));
-                ChatScrollViewer.ScrollToEnd();
-            }));
-        }
-
-        public void OnToolCompleted(string toolName, bool isError, string result)
-        {
-            Dispatcher.BeginInvoke(new Action(() =>
-            {
-                string preview = result.Length > 200 ? result.Substring(0, 200) + "..." : result;
-                string status = isError ? $"✗ {toolName} — error:\n{preview}" : $"✓ {toolName} completed";
-                _messages.Add(new ChatMessage(isError ? "tool_error" : "tool_ok", status));
-                ChatScrollViewer.ScrollToEnd();
-            }));
-        }
-
-        public void OnIntermediateText(string text)
-        {
-            Dispatcher.BeginInvoke(new Action(() =>
-            {
-                _messages.Add(new ChatMessage("assistant", text));
-                ChatScrollViewer.ScrollToEnd();
-            }));
-        }
-
-        public void OnRoundProgress(int current, int max)
-        {
-            Dispatcher.BeginInvoke(new Action(() =>
-            {
-                TypingText.Text = $"Codex is processing... (step {current}/{max})";
-            }));
-        }
-
+        public void Shutdown() { _statusTimer.Stop(); ReleaseWindow(); }
         public void LogCommand(string commandName, bool success, string message, double durationMs) { }
-
-
-        public void OnRetrying(int seconds)
-        {
-            Dispatcher.BeginInvoke(new Action(() =>
-            {
-                TypingText.Text = $"Rate limit — retrying in {seconds}s...";
-            }));
-        }
-
-        public void OnThinkingReceived(string thinkingText)
-        {
-            Dispatcher.BeginInvoke(new Action(() =>
-            {
-                // Show a compact summary instead of the full thinking text
-                int charCount = thinkingText.Length;
-                string firstLine = thinkingText.Split('\n')[0];
-                if (firstLine.Length > 120)
-                    firstLine = firstLine.Substring(0, 120) + "...";
-                string summary = $"{firstLine}\n[{charCount:N0} chars of reasoning]";
-                _messages.Add(new ChatMessage("thinking", summary));
-                ChatScrollViewer.ScrollToEnd();
-            }));
-        }
-
-        private void StopButton_Click(object sender, MouseButtonEventArgs e)
-        {
-            _client?.Cancel();
-            TypingText.Text = "Cancelling...";
-        }
-
-        private void ClearChat_Click(object sender, MouseButtonEventArgs e)
-        {
-            if (_isProcessing) { AddSystemMessage("Press Stop and wait for the current reply before starting a new chat."); return; }
-            _messages.Clear();
-            _client?.ClearHistory();
-            _attachments.Clear();
-            ChatInput.Clear();
-            AddMessage("assistant", "Chat cleared. How can I help you?");
-        }
-
-        public void Shutdown()
-        {
-            _statusTimer.Stop();
-            _chipsTimer.Stop();
-            _client?.Dispose();
-        }
-
-        private void ExportChat_Click(object sender, MouseButtonEventArgs e)
-        {
-            try
-            {
-                var dialog = new Microsoft.Win32.SaveFileDialog
-                {
-                    Title = "Export chat",
-                    FileName = $"chat_{DateTime.Now:yyyyMMdd_HHmmss}",
-                    DefaultExt = ".txt",
-                    Filter = "Text (*.txt)|*.txt|Markdown (*.md)|*.md|JSON (*.json)|*.json",
-                    InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments)
-                };
-
-                if (dialog.ShowDialog() != true) return;
-
-                string content;
-                switch (dialog.FilterIndex)
-                {
-                    case 2: content = BuildMarkdown(); break;
-                    case 3: content = BuildJson(); break;
-                    default: content = BuildPlainText(); break;
-                }
-
-                File.WriteAllText(dialog.FileName, content, Encoding.UTF8);
-                AddMessage("assistant", $"Chat exported to:\n{dialog.FileName}");
-            }
-            catch (Exception ex)
-            {
-                AddMessage("assistant", $"Export error: {ex.Message}");
-            }
-        }
-
-        public void AddSystemMessage(string message)
-        {
-            Dispatcher.Invoke(() =>
-            {
-                _messages.Add(new ChatMessage("tool", message));
-                ChatScrollViewer.ScrollToEnd();
-            });
-        }
-
-        private void VerifyConnection_Click(object sender, MouseButtonEventArgs e)
-        {
-            try
-            {
-                var pluginDir = Path.GetDirectoryName(typeof(MCPDockablePanel).Assembly.Location);
-                int port = SocketService.Instance?.Port ?? 0;
-                var results = HealthChecker.RunAll(pluginDir, port);
-
-                var sb = new StringBuilder();
-                sb.AppendLine("--- Connection Diagnostic ---");
-                foreach (var r in results)
-                {
-                    string icon = r.Passed ? "[OK]" : "[FAIL]";
-                    if (r.AutoFixed) icon = "[FIXED]";
-                    sb.AppendLine($"{icon} {r.Name}: {r.Message}");
-                }
-                sb.AppendLine($"Log folder: {McpLogger.LogDirectory ?? "N/A"}");
-                sb.Append("-----------------------------");
-
-                AddSystemMessage(sb.ToString());
-            }
-            catch (Exception ex)
-            {
-                AddSystemMessage($"[ERROR] Diagnostic failed: {ex.Message}");
-            }
-        }
-
-        private string BuildPlainText()
-        {
-            var sb = new StringBuilder();
-            sb.AppendLine($"Codex for Revit — {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
-            sb.AppendLine(new string('=', 60));
-            sb.AppendLine();
-            foreach (var msg in _messages)
-            {
-                sb.AppendLine($"[{msg.RoleLabel}]");
-                sb.AppendLine(msg.Text);
-                sb.AppendLine();
-            }
-            return sb.ToString();
-        }
-
-        private string BuildMarkdown()
-        {
-            var sb = new StringBuilder();
-            sb.AppendLine($"# Codex for Revit — {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
-            sb.AppendLine();
-            foreach (var msg in _messages)
-            {
-                sb.AppendLine($"**{msg.RoleLabel}**");
-                sb.AppendLine();
-                sb.AppendLine(msg.Text);
-                sb.AppendLine();
-                sb.AppendLine("---");
-                sb.AppendLine();
-            }
-            return sb.ToString();
-        }
-
-        private string BuildJson()
-        {
-            var array = new Newtonsoft.Json.Linq.JArray();
-            foreach (var msg in _messages)
-                array.Add(new Newtonsoft.Json.Linq.JObject
-                {
-                    ["role"] = msg.RoleLabel,
-                    ["text"] = msg.Text
-                });
-            return new Newtonsoft.Json.Linq.JObject
-            {
-                ["exported"] = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
-                ["messages"] = array
-            }.ToString(Newtonsoft.Json.Formatting.Indented);
-        }
-    }
-
-    public class PromptChip
-    {
-        public string Text { get; set; }
-        public string Prompt { get; set; }
-
-        public PromptChip(string text, string prompt = null)
-        {
-            Text = text;
-            Prompt = prompt ?? text;
-        }
-    }
-
-    public class ChatMessage : INotifyPropertyChanged
-    {
-        public string Role { get; }
-        public string Text { get; private set; }
-        public event PropertyChangedEventHandler PropertyChanged;
-        public void UpdateText(string text)
-        {
-            Text = text;
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Text)));
-        }
-        public string RoleLabel { get; }
-        public string AvatarLetter { get; }
-        public SolidColorBrush AvatarBackground { get; }
-        public SolidColorBrush RoleLabelColor { get; }
-        public SolidColorBrush TextColor { get; }
-        public SolidColorBrush RowBackground { get; }
-        public FontFamily FontFamily { get; }
-
-        private static readonly SolidColorBrush CodexAccent = new SolidColorBrush(Color.FromRgb(32, 33, 35));
-        private static readonly SolidColorBrush UserBlue = new SolidColorBrush(Color.FromRgb(88, 130, 207));
-        private static readonly SolidColorBrush ToolGreen = new SolidColorBrush(Color.FromRgb(76, 175, 80));
-        private static readonly SolidColorBrush ThinkingPurple = new SolidColorBrush(Color.FromRgb(147, 112, 219));
-
-        public ChatMessage(string role, string text)
-        {
-            Role = role;
-            Text = text;
-
-            switch (role)
-            {
-                case "user":
-                    RoleLabel = "You";
-                    AvatarLetter = "U";
-                    AvatarBackground = UserBlue;
-                    RoleLabelColor = new SolidColorBrush(Color.FromRgb(26, 26, 26));
-                    TextColor = new SolidColorBrush(Color.FromRgb(26, 26, 26));
-                    RowBackground = new SolidColorBrush(Colors.White);
-                    FontFamily = new FontFamily("Segoe UI");
-                    break;
-                case "thinking":
-                    RoleLabel = "Planning";
-                    AvatarLetter = "💡";
-                    AvatarBackground = ThinkingPurple;
-                    RoleLabelColor = ThinkingPurple;
-                    TextColor = new SolidColorBrush(Color.FromRgb(120, 100, 160));
-                    RowBackground = new SolidColorBrush(Color.FromRgb(248, 246, 252));
-                    FontFamily = new FontFamily("Segoe UI");
-                    break;
-                case "tool":
-                    RoleLabel = "";
-                    AvatarLetter = "⚡";
-                    AvatarBackground = ToolGreen;
-                    RoleLabelColor = ToolGreen;
-                    TextColor = new SolidColorBrush(Color.FromRgb(46, 125, 50));
-                    RowBackground = new SolidColorBrush(Color.FromRgb(250, 249, 247));
-                    FontFamily = new FontFamily("Consolas");
-                    break;
-                case "tool_ok":
-                    RoleLabel = "";
-                    AvatarLetter = "✓";
-                    AvatarBackground = ToolGreen;
-                    RoleLabelColor = ToolGreen;
-                    TextColor = new SolidColorBrush(Color.FromRgb(46, 125, 50));
-                    RowBackground = new SolidColorBrush(Color.FromRgb(245, 252, 245));
-                    FontFamily = new FontFamily("Segoe UI");
-                    break;
-                case "tool_error":
-                    RoleLabel = "";
-                    AvatarLetter = "✗";
-                    AvatarBackground = new SolidColorBrush(Color.FromRgb(244, 67, 54));
-                    RoleLabelColor = new SolidColorBrush(Color.FromRgb(244, 67, 54));
-                    TextColor = new SolidColorBrush(Color.FromRgb(183, 28, 28));
-                    RowBackground = new SolidColorBrush(Color.FromRgb(255, 245, 245));
-                    FontFamily = new FontFamily("Consolas");
-                    break;
-                default:
-                    RoleLabel = "Codex";
-                    AvatarLetter = "C";
-                    AvatarBackground = CodexAccent;
-                    RoleLabelColor = new SolidColorBrush(Color.FromRgb(26, 26, 26));
-                    TextColor = new SolidColorBrush(Color.FromRgb(55, 53, 47));
-                    RowBackground = new SolidColorBrush(Color.FromRgb(250, 249, 247));
-                    FontFamily = new FontFamily("Segoe UI");
-                    break;
-            }
-        }
     }
 }

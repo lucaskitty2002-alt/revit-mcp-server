@@ -1,20 +1,17 @@
-# Codex i Revit 2026
+# Det rigtige Codex-vindue i Revit
 
-Panelet **Codex for Revit** bruger din installerede Codex og dit eksisterende login. Der skal ikke indtastes en API-nøgle i Revit.
+Revit-panelet kan nu indlejre selve Codex-appens vindue. Der oprettes ikke en separat chat. Vælg modeller, chats, filer og værktøjer i Codex, som du plejer.
 
-1. Installer Codex, og log ind på din computer.
-2. Luk Revit.
-3. Pak Codex-versionens installationspakke ud.
-4. Kør `scripts/install-codex.ps1 -ReleaseZip <pakke.zip> -Force`.
-5. Start Revit, åbn en model, og aktivér **Add-Ins > Revit MCP Switch**.
-6. Åbn **Add-Ins > Codex Chat**.
+1. Luk Revit og installer pakken med `INSTALLA.bat`.
+2. Start Revit, åbn en model og aktivér **Revit MCP Switch**.
+3. Åbn **Codex Chat** i Revit.
+4. Vælg **Open Codex**, derefter **Refresh windows**.
+5. Vælg det ønskede Codex-vindue og tryk **Show in Revit**.
 
-Under **Settings > Codex** kan du kontrollere login, logge ind, vælge codex.exe manuelt eller angive en model. Et tomt modelfelt bruger din Codex-konfiguration. Start en ny chat efter ændringer.
+**Release to desktop** frigør appen igen. Den frigøres også ved normal lukning af panelet eller Revit. **Recover window** kan gendanne et overlevende vindue, hvis dets tidligere vært ikke længere findes.
 
-Panelet streamer svar og viser værktøjskald. **Stop** afbryder samtalen; modelændringer, som allerede er udført, bliver i Revit. **New chat** starter en ny samtale. Eksportér chatten, før du lukker Revit, hvis den skal gemmes.
+Dette er en eksperimentel Windows-integration. Appsene skal have kompatible rettigheder og skærmskalering. Uforenelig skalering afvises, før vinduet ændres. Nogle dialoger og ekstra appvinduer kan åbne separat på skrivebordet. Ved et hårdt Revit-nedbrud kan Windows lukke et indlejret vindue; gendannelse kan ikke genskabe et vindue, der allerede er ødelagt.
 
-Installationen registrerer også `revit-mcp` i Codex til brug fra skrivebordsappen. Start en ny Codex-chat for at indlæse den.
+Modelforbindelsen fungerer fortsat gennem `revit-mcp` i Codex. Efter ny registrering af MCP-forbindelsen skal du starte en ny Codex-chat. Tilgængelige værktøjer og kontofunktioner følger den rigtige app.
 
-Tidligere installationer sikkerhedskopieres under `%LOCALAPPDATA%/RevitMCP/Backups`. Andre Revit-plugins bevares. Konti, modeldata, nøgler og lokale indstillinger må ikke lægges på GitHub.
-
-Se [README](../README.md) for bygning og test. Projektet bygger på [originalprojektet](https://github.com/LuDattilo/revit-mcp-server); MIT-licensen og ophavsretsteksterne bevares.
+Se [README](../README.md) for bygning og test. Projektets MIT-licens og oprindelige ophavsretstekster bevares.

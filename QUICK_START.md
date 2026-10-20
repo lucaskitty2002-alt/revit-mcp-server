@@ -1,5 +1,7 @@
 # Quick start
 
-Install the matching Codex for Revit release, sign in to Codex, open a Revit model, enable **Revit MCP Switch**, then open **Codex Chat**.
+Install the matching package, open a model in Revit, and enable **Revit MCP Switch**.
 
-See [installation](README.md#install), [Danish setup](docs/codex-setup-da.md), and [tool reference](COMMANDS.md).
+Open **Codex Chat > Open Codex > Refresh windows**, select your actual Codex app window, then choose **Show in Revit**. Choose **Release to desktop** to undo the embedding.
+
+See [README](README.md) for installation, compatibility and testing.

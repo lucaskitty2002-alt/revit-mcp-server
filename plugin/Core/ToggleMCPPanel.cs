@@ -16,7 +16,10 @@ namespace revit_mcp_plugin.Core
                 if (pane != null)
                 {
                     if (pane.IsShown())
+                    {
+                        MCPDockablePanel.Instance?.ReleaseWindow();
                         pane.Hide();
+                    }
                     else
                         pane.Show();
                 }

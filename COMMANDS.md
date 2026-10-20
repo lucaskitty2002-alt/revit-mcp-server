@@ -35,7 +35,7 @@
 4. Register the MCP server with Codex using scripts/fix-mcp.ps1
 
 ### Chat Panel (inside Revit)
-The plugin includes **Codex Chat** in the ribbon. It uses the installed Codex app-server and existing login, streams replies, and executes Revit tools through the plugin's active local TCP port.
+The plugin includes **Codex Chat** in the ribbon. It can host the actual Codex desktop window. The app's registered revit-mcp connection executes model tools through the plugin's active local TCP port.
 
 ---
 
@@ -678,7 +678,7 @@ These 15 tools were added based on research of the most commonly automated BIM t
 
 ## Chat Panel
 
-The **Codex for Revit** panel supports streamed replies, multiple tool calls, Stop, New chat, and export. Configure login, executable discovery, or an optional model under **Settings > Codex**. Each computer uses its own Codex sign-in.
+The **Codex app in Revit** panel moves a selected desktop app window into Revit. Use Open Codex, Refresh windows and Show in Revit; Release to desktop restores it. Chat features, login, models and tools are managed in the actual Codex app. See README.md for Windows compatibility and recovery.
 
 ### Example prompts for the chat panel:
 - "What project do I have open?"
@@ -716,7 +716,7 @@ Common causes:
 - Check Windows Firewall is not blocking localhost connections
 
 ### Chat panel cannot connect to Codex
-Use **Settings > Codex > Check login**. Install Codex and sign in if needed. If automatic discovery fails, select codex.exe with Browse. Start a new chat after changing settings.
+Open the Codex desktop app and sign in there. Refresh windows in the Revit panel and select its window. If Windows reports incompatible scaling or permissions, use Codex beside Revit. See README.md for compatibility and recovery.
 
 ---
 

@@ -16,5 +16,7 @@ jobs:
         run: dotnet build plugin/RevitMCPPlugin.csproj -c "Release R26"
       - name: Test Codex panel protocol and Revit bridge
         run: dotnet run --project tests/codex-panel/CodexPanel.Tests.csproj
+      - name: Test native cross-process desktop window host
+        run: dotnet run --project tests/desktop-window/DesktopWindow.Tests.csproj
       - name: Test installation and backup isolation
         run: ./tests/codex-panel/Test-Installer.ps1

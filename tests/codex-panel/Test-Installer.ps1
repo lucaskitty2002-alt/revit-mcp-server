@@ -3,6 +3,13 @@ $ErrorActionPreference = 'Stop'
 $installer = (Resolve-Path "$PSScriptRoot\..\..\scripts\install.ps1").Path
 $previousAppData = $env:APPDATA
 $previousLocal = $env:LOCALAPPDATA
+# The test changes APPDATA/LOCALAPPDATA to an isolated fixture. An unrelated,
+# real Revit session must not prevent testing this disposable installation.
+function Get-Process {
+    [CmdletBinding()] param([string]$Name)
+    if ($Name -eq 'Revit') { return }
+    Microsoft.PowerShell.Management\Get-Process @PSBoundParameters
+}
 try {
     $env:APPDATA = Join-Path $TestRoot 'Roaming'
     $env:LOCALAPPDATA = Join-Path $TestRoot 'Local'

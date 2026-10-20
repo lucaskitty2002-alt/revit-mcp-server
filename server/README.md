@@ -1,13 +1,13 @@
-# Revit MCP server for Codex
+# Revit MCP server
 
-This TypeScript MCP server exposes Revit tools to the Codex desktop app over stdio and connects to the Revit plugin over local TCP. It is separate from the in-Revit chat panel's direct app-server tool bridge.
+This TypeScript server exposes 138 Revit tools to the Codex desktop app over stdio and connects to the Revit plugin through local TCP.
 
-Run `npm ci` and `npm run build` to compile. Register with:
+The Revit panel now hosts the actual desktop app window. It does not start a second chat engine. MCP registration and tool access remain managed by Codex regardless of where the window is displayed.
+
+Build with `npm ci` and `npm run build`. The packaged installer registers the bundled runtime and entry point automatically:
 
 ```text
 codex mcp add revit-mcp -- NODE_PATH SERVER_BUILD_INDEX_PATH
 ```
 
-The Revit installer registers the bundled runtime and server automatically. Start a new Codex chat after registration, open a model in Revit, and enable Revit MCP Switch.
-
-See the repository [README](../README.md) for setup and the Codex chat panel.
+Start a new Codex chat after registration and enable Revit MCP Switch in the open model. See [README](../README.md) for setup.

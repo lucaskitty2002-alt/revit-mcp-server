@@ -1,13 +1,13 @@
-# Codex for Revit user guide
+# Codex window panel
 
-Open **Add-Ins > Codex Chat** after enabling **Revit MCP Switch** and opening a model. Describe the Revit work you want performed. The panel shows streamed replies and tool results.
+Enable **Revit MCP Switch**, then open **Codex Chat**.
 
-- **Stop** interrupts current work. Completed model changes remain in Revit.
-- **New chat** starts a fresh conversation after the current turn finishes.
-- **Export** saves the conversation as text, Markdown, or JSON.
-- **Verify Connection** checks installation files, Codex availability, and the Revit TCP connection.
-- **Settings > Codex** checks login and configures the Codex executable or model.
+- **Open Codex** opens the installed desktop app.
+- **Refresh windows** lists its open top-level windows.
+- **Show in Revit** moves the selected app window into the panel.
+- **Release to desktop** restores the window's original placement and frame.
+- **Recover window** restores a surviving orphan when the previous host is gone.
 
-Use the configured default model by leaving the model field empty. Start a new chat after changing settings. Each computer uses its own Codex account. Conversations in the panel last for the current Revit session; export them if needed.
+Use the actual app's chat picker, settings, attachments and other features. The panel has no separate model picker or conversation. Its window location does not change the Codex account's tools or permissions. Use the registered `revit-mcp` connection for Revit model work.
 
-For available Revit operations see [COMMANDS.md](COMMANDS.md). For installation and troubleshooting see [README](README.md).
+Hiding the panel or normally closing Revit releases the window. Embedding is experimental; incompatible display-scaling modes or permissions can prevent it, and dialogs may open separately. See [compatibility and recovery](README.md#windows-compatibility).
