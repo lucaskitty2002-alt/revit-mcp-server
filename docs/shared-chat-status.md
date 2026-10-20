@@ -4,7 +4,7 @@
 
 The user confirmed that placing the original Codex window over the Revit panel and moving it back to the desktop is acceptable. The requirement is the full original app interface inside the Revit area. Two simultaneously interactive copies are not required.
 
-## Version 2.6 candidate
+## Version 2.6 installed
 
 `DesktopOverlayLease` positions the original top-level app window over the panel and gives it the host as an owner. It preserves its top-level identity and DPI context; it does not use the version 2.4 cross-process SetParent approach. Original owner/frame/placement and process identity are recorded before changes. Normal close/hide/shutdown releases the app, and recovery is available after an interrupted placement. An owned source window is not guaranteed to survive a hard host crash.
 
@@ -32,3 +32,7 @@ These checks have not been established by controlled-window tests. Do not claim 
 ## Previous installed version
 
 Version 2.5.0.0 was installed for Revit 2026 on 2026-10-20. Its limited same-thread text client remains available in the Textchat tab. The earlier live probe verified current-thread owner discovery and transcript retrieval. Version 2.5 did not provide the complete app interface.
+
+## Local installation verification
+
+Version 2.6.0.0 was installed for Revit 2026 on 2026-10-20 with Revit closed. Its installed DLL matches the tested package from source commit 4dcc601. SHA-256: 27268E64F93366EC1673E7326775FEA035C59E9A85D2753D5455A28F198DDA95. The installer backed up the previous add-in and registered revit-mcp. The actual Codex/Revit manual acceptance checks above are still pending.
