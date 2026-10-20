@@ -9,6 +9,7 @@ namespace revit_mcp_plugin.UI
     {
         public string Executable { get; set; } = "";
         public string Model { get; set; } = "";
+        public string SharedThreadId { get; set; } = "";
         public static string SettingsDirectory => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "RevitMCP", "Codex");
         public static string Workspace => Path.Combine(SettingsDirectory, "workspace");
         private static string SettingsFile => Path.Combine(SettingsDirectory, "settings.json");

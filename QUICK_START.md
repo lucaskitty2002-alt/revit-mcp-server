@@ -1,7 +1,5 @@
 # Quick start
 
-Install the matching package, open a model in Revit, and enable **Revit MCP Switch**.
+Install the Revit 2026 package with Revit closed, then enable **Revit MCP Switch**. Keep Codex open on the conversation you want to share. In **Codex Chat**, select **Hent chats**, select the same chat and choose **Forbind chat**. Type below the shared transcript. Enter sends; Shift+Enter creates a newline.
 
-Open **Codex Chat > Open Codex > Refresh windows**, select your actual Codex app window, then choose **Show in Revit**. Choose **Release to desktop** to undo the embedding.
-
-See [README](README.md) for installation, compatibility and testing.
+Text messages and text replies use the desktop-owned conversation. Handle approvals, questions and attachments in Codex. Chat updates every two seconds. The desktop/IDE protocol integration is experimental and may require updates when Codex changes.

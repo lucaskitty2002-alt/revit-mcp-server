@@ -1,14 +1,14 @@
 <Page x:Class="revit_mcp_plugin.UI.CodexSettingsPage"
-      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-    <ScrollViewer Background="White" VerticalScrollBarVisibility="Auto">
-        <StackPanel Margin="0,0,20,20">
-            <TextBlock Text="Codex desktop app" FontSize="22" FontWeight="SemiBold"/>
-            <TextBlock Margin="0,12,0,0" TextWrapping="Wrap" Text="The Revit panel now hosts the actual Codex app window. Choose your model, account, chats, skills and tools in the Codex app itself."/>
-            <TextBlock Margin="0,12,0,0" TextWrapping="Wrap" Text="No separate chat engine runs in this panel. The Revit MCP connection remains available in Codex under revit-mcp. Start a new Codex chat after registering or updating that connection."/>
-            <Button Content="Open Codex" Click="OpenCodex_Click" HorizontalAlignment="Left" Padding="18,8" Margin="0,20,0,12"/>
-            <TextBlock x:Name="Status" Foreground="#555555" TextWrapping="Wrap"/>
-            <TextBlock Margin="0,12,0,0" TextWrapping="Wrap" Text="Use Show in Revit in the Codex panel to attach a selected window. Release to desktop returns it to a normal app window. Windows requires compatible app permissions and display-scaling modes; incompatible windows are left unchanged."/>
-        </StackPanel>
-    </ScrollViewer>
+ xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+ <ScrollViewer Background="White" VerticalScrollBarVisibility="Auto">
+  <StackPanel Margin="0,0,20,20">
+   <TextBlock Text="Codex · delt chat" FontSize="22" FontWeight="SemiBold"/>
+   <TextBlock Margin="0,12,0,0" TextWrapping="Wrap" Text="Åbn en eksisterende chat i Codex-appen. Vælg derefter samme chat i Revit-panelet, og tryk Forbind chat. Beskeder og svar hentes fra appens samtale. Appen skal være åben."/>
+   <TextBlock Margin="0,12,0,0" TextWrapping="Wrap" Text="Revit-panelet understøtter tekstbeskeder og tekstsvar. Modeller, værktøjer, godkendelser, spørgsmål og vedhæftninger håndteres i Codex-appen. Revit MCP Switch skal være aktiveret for modelværktøjer."/>
+   <Button Content="Åbn Codex" Click="OpenCodex_Click" HorizontalAlignment="Left" Padding="18,8" Margin="0,20,0,12"/>
+   <TextBlock x:Name="Status" Foreground="#555555" TextWrapping="Wrap"/>
+   <TextBlock Margin="0,12,0,0" TextWrapping="Wrap" Text="Forbindelsen bruger Codex-appens interne chatdeling og er eksperimentel. En appopdatering kan kræve en opdatering af tilføjelsen. Der flyttes ikke længere vinduer, og skærmskalering påvirker ikke chatforbindelsen."/>
+  </StackPanel>
+ </ScrollViewer>
 </Page>

@@ -1,27 +1,30 @@
-# Shared chat requirement and current blocker
+# Shared chat validation status
 
-The requested behavior is **two independently usable chat windows, in Revit and in the Codex desktop app, showing and sending to the same conversation**. This is different from moving one native app window into another application.
+## Requirement
 
-## Current installation
+Two independently usable windows showing and sending to the same persistent Codex conversation. Revit supports a text interface; the desktop remains responsible for tool execution, approvals, input questions and full app features.
 
-Version 2.4 implements native window reparenting. It has no independent chat composer or conversation synchronization. On the user's actual setup, it refuses attachment because the Codex and Revit windows have incompatible DPI-awareness contexts. The app is left on the desktop and the Revit panel remains an instruction screen. The controlled native-window tests did not establish compatibility with the user's actual apps.
+## Version 2.5 candidate
 
-Do not describe this version as a working synchronized chat, and do not bypass the DPI check to claim synchronization.
+The failed version 2.4 native-window approach has been replaced in the panel. The installed 2.4 binary has no composer and cannot synchronize chats; updating source or documentation does not change an already loaded Revit DLL.
 
-## Read-only investigation
+Investigation found the desktop's separate `codex-ipc` coordination pipe. The absence of an app-server daemon socket did not mean desktop chat sharing was unavailable. A read-only C# live probe successfully discovered the owner of the current desktop chat and retrieved that same persistent thread's conversation snapshot and transcript. No messages were sent by this probe, and no thread was resumed in a competing backend.
 
-The desktop app's local Codex process uses stdio. No shared control socket was found in the local Codex home. The CLI's default app-server control connection did not connect. Therefore an independent Revit client has not been verified against the desktop app's existing live backend.
+`CodexSharedChat` uses the desktop/IDE follower protocol, snapshot version 11, against installed desktop 26.1013. Requests go to the owner and preserve its settings. This is an internal, version-dependent integration, not a supported public Revit integration. The app-server documentation alone does not document this bridge.
 
-The documented app-server protocol supports thread IDs, history, user turns and streamed events. That makes custom chat clients possible, but a new app-server process or the same account login does not by itself prove that the desktop app and the Revit panel share one live conversation.
+## Completed automated validation
 
-## Acceptance criteria before another installation
+- Revit 2026 build.
+- Isolated named-pipe test: fragmented framing, owner selection, same-thread send and Unicode, canonical history rendering, unchanged execution settings and active-turn refusal.
+- Read-only live desktop owner discovery and same-thread transcript retrieval.
 
-1. Verify a supported connection to the backend that owns the desktop conversation.
-2. Identify the same persistent thread from both clients without creating a replacement conversation.
-3. Send a user-requested message from each UI and verify that both display it and the same resulting reply.
-4. Verify tool actions, approvals, active-turn conflicts, reconnects and history without changing the conversation's permissions.
-5. Keep a real composer in the Revit UI and describe any features it does not implement. Do not claim complete desktop-app feature parity from a protocol-only test.
+## Still required in the user's running apps
 
-No synchronized-client fix has been installed yet. Do not silently substitute an independent chat or copy message text between unrelated conversations.
+- Install the 2.5 binary with Revit closed.
+- Send a harmless message from the Revit composer and verify its message/reply in both interfaces.
+- Send from the desktop and verify the Revit history.
+- Check desktop approvals/questions, active-turn conflicts, reconnect and app closure.
 
-Reference: [Codex app-server protocol](https://learn.chatgpt.com/docs/app-server).
+Do not describe end-to-end Revit sending as verified until these checks succeed. Revit text/history UI does not implement desktop feature parity. Full snapshots refresh every two seconds; version changes fail closed. There is no automatic retry after an unknown delivery outcome.
+
+Official documentation describes desktop/IDE shared chats: [Developer settings](https://learn.chatgpt.com/docs/developer-settings). The bridge used here was verified from the installed app and a live read-only probe.

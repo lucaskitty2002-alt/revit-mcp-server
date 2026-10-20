@@ -1,38 +1,31 @@
 <Page x:Class="revit_mcp_plugin.UI.MCPDockablePanel"
-      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-      xmlns:local="clr-namespace:revit_mcp_plugin.UI"
-      Background="White" Loaded="Page_Loaded" Unloaded="Page_Unloaded" IsVisibleChanged="Page_IsVisibleChanged">
-    <Grid>
-        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-        <Border Padding="14,12" BorderBrush="#E5E7EB" BorderThickness="0,0,0,1">
-            <StackPanel>
-                <TextBlock Text="Codex app in Revit" FontSize="16" FontWeight="SemiBold"/>
-                <TextBlock Text="Use the actual Codex desktop window, with its existing chats and tools." TextWrapping="Wrap" Foreground="#555555" Margin="0,5,0,10"/>
-                <WrapPanel>
-                    <Button Content="Open Codex" Click="OpenCodex_Click" Padding="12,6" Margin="0,0,6,6"/>
-                    <Button x:Name="RefreshButton" Content="Refresh windows" Click="Refresh_Click" Padding="12,6" Margin="0,0,6,6"/>
-                    <Button x:Name="AttachButton" Content="Show in Revit" Click="Attach_Click" Padding="12,6" Margin="0,0,6,6"/>
-                    <Button Content="Release to desktop" Click="Release_Click" Padding="12,6" Margin="0,0,6,6"/>
-                    <Button Content="Recover window" Click="Recover_Click" Padding="12,6" Margin="0,0,6,6"/>
-                </WrapPanel>
-                <ComboBox x:Name="WindowPicker" MinHeight="28" MaxDropDownHeight="240" HorizontalContentAlignment="Stretch"/>
-            </StackPanel>
-        </Border>
-        <Grid Grid.Row="1">
-            <StackPanel x:Name="Instructions" VerticalAlignment="Center" Margin="24">
-                <TextBlock Text="Bring your Codex window into Revit" FontSize="20" FontWeight="SemiBold" TextWrapping="Wrap"/>
-                <TextBlock Margin="0,12,0,0" TextWrapping="Wrap" Text="1. Open Codex and sign in in the app.&#10;2. Refresh windows and select the Codex window.&#10;3. Choose Show in Revit."/>
-                <TextBlock Margin="0,14,0,0" Foreground="#555555" TextWrapping="Wrap" Text="This moves the existing app window; it does not copy the screen or create another chat. Choose your chat in Codex as usual. For Revit work, enable Revit MCP Switch and use the registered revit-mcp connection."/>
-                <TextBlock Margin="0,14,0,0" Foreground="#555555" TextWrapping="Wrap" Text="Release to desktop returns the app to its original position. Hiding this panel or closing Revit normally also releases it. Window embedding is experimental; some popups may remain separate desktop windows."/>
-            </StackPanel>
-            <local:CodexDesktopHost x:Name="DesktopHost" Visibility="Collapsed" />
-        </Grid>
-        <Border Grid.Row="2" Padding="12,8" BorderBrush="#E5E7EB" BorderThickness="0,1,0,0" Background="#F9FAFB">
-            <StackPanel>
-                <TextBlock x:Name="StatusText" Text="Open Codex to choose its window." TextWrapping="Wrap" Foreground="#444444"/>
-                <TextBlock x:Name="RevitStatus" Margin="0,4,0,0" TextWrapping="Wrap" Foreground="#666666"/>
-            </StackPanel>
-        </Border>
-    </Grid>
+ xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Background="#FAFAFA"
+ Loaded="Page_Loaded" Unloaded="Page_Unloaded" IsVisibleChanged="Page_IsVisibleChanged">
+ <Grid Margin="12">
+  <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+  <StackPanel>
+   <TextBlock Text="Codex · delt chat" FontSize="19" FontWeight="SemiBold"/>
+   <TextBlock Text="Samme samtale som i Codex-appen · eksperimentel forbindelse" Foreground="#666" TextWrapping="Wrap" Margin="0,4,0,10"/>
+   <WrapPanel>
+    <Button Content="Åbn Codex" Click="OpenCodex_Click" Padding="10,5" Margin="0,0,6,6"/>
+    <Button x:Name="RefreshButton" Content="Hent chats" Click="Refresh_Click" Padding="10,5" Margin="0,0,6,6"/>
+    <Button x:Name="ConnectButton" Content="Forbind chat" Click="Connect_Click" Padding="10,5" Margin="0,0,6,6"/>
+   </WrapPanel>
+   <ComboBox x:Name="ThreadPicker" DisplayMemberPath="Label" MinHeight="28" MaxDropDownHeight="240"/>
+   <TextBlock x:Name="ThreadIdentity" Foreground="#666" TextWrapping="Wrap" FontSize="11" Margin="0,5,0,8"/>
+  </StackPanel>
+  <ScrollViewer x:Name="HistoryScroll" Grid.Row="1" VerticalScrollBarVisibility="Auto" Margin="0,6">
+   <TextBox x:Name="History" IsReadOnly="True" TextWrapping="Wrap" BorderThickness="0" Background="Transparent" Padding="6" Text="Vælg en eksisterende chat, som er åben i Codex-appen, og tryk Forbind chat."/>
+  </ScrollViewer>
+  <StackPanel Grid.Row="2">
+   <TextBlock Text="Godkendelser, spørgsmål, billeder og øvrige appfunktioner håndteres i Codex-appen." TextWrapping="Wrap" Foreground="#666" FontSize="11" Margin="0,0,0,6"/>
+   <TextBox x:Name="Composer" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="82" MaxHeight="180" VerticalScrollBarVisibility="Auto" Padding="10" PreviewKeyDown="Composer_KeyDown"/>
+   <Button x:Name="SendButton" Content="Send · Enter" HorizontalAlignment="Right" Padding="18,7" Margin="0,6,0,6" Click="Send_Click" IsEnabled="False"/>
+  </StackPanel>
+  <StackPanel Grid.Row="3">
+   <TextBlock x:Name="StatusText" Text="Ikke forbundet · Shift+Enter giver en ny linje." TextWrapping="Wrap" Foreground="#444"/>
+   <TextBlock x:Name="RevitStatus" FontSize="11" Foreground="#666" TextWrapping="Wrap" Margin="0,4,0,0"/>
+  </StackPanel>
+ </Grid>
 </Page>

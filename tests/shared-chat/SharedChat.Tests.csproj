@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+ <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net8.0-windows</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>disable</Nullable></PropertyGroup>
+ <ItemGroup>
+  <PackageReference Include="Newtonsoft.Json" Version="13.0.3"/>
+  <Compile Include="../../plugin/UI/CodexSharedChat.cs" Link="CodexSharedChat.cs"/>
+  <Compile Include="../../plugin/UI/CodexChatTranscript.cs" Link="CodexChatTranscript.cs"/>
+  <Compile Include="../../plugin/UI/CodexAppServer.cs" Link="CodexAppServer.cs"/>
+  <Compile Include="../../plugin/UI/CodexSettings.cs" Link="CodexSettings.cs"/>
+ </ItemGroup>
+</Project>

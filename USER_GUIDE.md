@@ -1,13 +1,5 @@
-# Codex window panel
+# Quick start
 
-Enable **Revit MCP Switch**, then open **Codex Chat**.
+Install the Revit 2026 package with Revit closed, then enable **Revit MCP Switch**. Keep Codex open on the conversation you want to share. In **Codex Chat**, select **Hent chats**, select the same chat and choose **Forbind chat**. Type below the shared transcript. Enter sends; Shift+Enter creates a newline.
 
-- **Open Codex** opens the installed desktop app.
-- **Refresh windows** lists its open top-level windows.
-- **Show in Revit** moves the selected app window into the panel.
-- **Release to desktop** restores the window's original placement and frame.
-- **Recover window** restores a surviving orphan when the previous host is gone.
-
-Use the actual app's chat picker, settings, attachments and other features. The panel has no separate model picker or conversation. Its window location does not change the Codex account's tools or permissions. Use the registered `revit-mcp` connection for Revit model work.
-
-Hiding the panel or normally closing Revit releases the window. Embedding is experimental; incompatible display-scaling modes or permissions can prevent it, and dialogs may open separately. See [compatibility and recovery](README.md#windows-compatibility).
+Text messages and text replies use the desktop-owned conversation. Handle approvals, questions and attachments in Codex. Chat updates every two seconds. The desktop/IDE protocol integration is experimental and may require updates when Codex changes.
