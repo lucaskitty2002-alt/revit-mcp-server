@@ -1,5 +1,7 @@
 # Codex desktop window in Revit
 
+**Current limitation:** version 2.4 is a window-reparenting experiment, not a synchronized chat client. Attachment was rejected on the user's actual Codex/Revit setup due to incompatible DPI modes. See [the clarified shared-chat requirement and investigation status](docs/shared-chat-status.md) before continuing development.
+
 This Revit add-in can host the **actual Codex desktop app window** inside its dockable panel. It moves the selected app window into Revit; it does not stream a screenshot, create another chat, or reproduce the Codex interface. Chats, models, skills, approvals, files and other app features remain owned by the Codex desktop app.
 
 The Revit MCP server still exposes 138 model tools to Codex. This project builds on [LuDattilo/revit-mcp-server](https://github.com/LuDattilo/revit-mcp-server); its MIT license and copyright notices are preserved.
