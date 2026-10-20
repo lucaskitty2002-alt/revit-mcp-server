@@ -25,6 +25,15 @@ Based on the shared school-PC branch `codex/physical-panel-bounds`, commit `82dd
 - TypeScript `tsc --noEmit`, esbuild server bundle, schema generation and MCP initialize/list smoke test passed: **138 tools**, no model call.
 - Installer fixture passed fresh install, required explicit replacement, backup, stale-file cleanup, invalid-package rejection and preservation of other add-ins. All fixture paths were isolated from the real Revit installation.
 - Actual compiled WPF controls rendered offscreen at 360×700 and 900×800 DIP: Codex, Hurtigchat, Arbejdsgange and native-panel layouts inspected. This is static layout QA: no HWND/Loaded handlers, native app discovery, account or inference used.
+- The complete archive was extracted and started with its bundled Node runtime independently of source node_modules; initialization/listing returned 138 tools. The packaged DLL hash matched the tested Revit 2026 build. A full installation into isolated APPDATA/LOCALAPPDATA fixture paths also matched the package and did not alter the real Revit installation or Codex registration.
+
+## Dependency refresh after the baseline GitHub alert
+
+The baseline production lock had 9 vulnerable packages in npm's aggregate audit. A non-forced, semver-compatible npm lock refresh raised the direct MCP SDK minimum to ^1.31.0 and resolved SDK 1.32.1, retaining Zod 3.25.76 and sql.js 1.14.1. Transitive fixes include Hono 4.13.13, @hono/node-server 2.1.5, body-parser 2.3.0, fast-uri 3.1.9, ip-address 10.7.4, proxy-addr 2.0.8 and qs 6.16.1. No direct dependency major upgrade or audit --force was used.
+
+Fresh npm 11.21.1 `npm ci --ignore-scripts` completed (137 installed / 138 audited packages) with **0 known npm vulnerabilities**. The production-only lock audit likewise returned zero at every severity. This is a database snapshot, not a guarantee against unknown vulnerabilities or a statement that the repository's default branch alerts have been cleared. These fixes are on the VUE Studio branch; other open dependency PRs were not merged.
+
+TypeScript checking, direct esbuild bundling and the dependency-free stdio initialization/listing test passed again against the updated lock (VUE Studio 2.7.0 / 138 tools). The chosen adapter requires Node 20+, now declared in the package; the installation archive bundles Node 24.19.0 and its matching LICENSE. JavaScript and NuGet dependency notices are included with the archive. No HTTP/OAuth listener was enabled; this plugin still uses local stdio MCP.
 
 ## Consumption conclusion
 

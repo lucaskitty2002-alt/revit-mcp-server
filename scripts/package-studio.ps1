@@ -42,11 +42,11 @@ if ($NugetPackages) {
         }
     }
 }
-$pnpm = Join-Path $root 'server\node_modules\.pnpm'
-if (Test-Path -LiteralPath $pnpm) {
-    $files = Get-ChildItem -LiteralPath $pnpm -Recurse -File | Where-Object { $_.Name -match '(?i)^(licen[sc]e|notice|third.party)' }
+$modules = Join-Path $root 'server\node_modules'
+if (Test-Path -LiteralPath $modules) {
+    $files = Get-ChildItem -LiteralPath $modules -Recurse -File -Force | Where-Object { $_.Name -match '(?i)^(licen[sc]e|notice|third.party)' }
     foreach ($file in $files) {
-        $dest = Join-Path $notices (Join-Path 'javascript' $file.FullName.Substring($pnpm.Length + 1))
+        $dest = Join-Path $notices (Join-Path 'javascript' $file.FullName.Substring($modules.Length + 1))
         New-Item -ItemType Directory -Path (Split-Path -Parent $dest) -Force | Out-Null
         Copy-Item -LiteralPath $file.FullName -Destination $dest
     }

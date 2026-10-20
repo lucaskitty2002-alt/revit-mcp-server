@@ -50,7 +50,7 @@ Controlled fixtures test pixels, geometry, input hit-testing, modal lifetime, mi
 
 ## Build and check
 
-Windows, .NET 8 SDK, Node.js and locked server dependencies:
+Windows, .NET 8 SDK, Node.js 20+ and locked server dependencies (the installation package bundles Node 24):
 
 ```powershell
 dotnet build plugin/RevitMCPPlugin.csproj -c "Release R26"
