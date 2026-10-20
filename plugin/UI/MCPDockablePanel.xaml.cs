@@ -48,7 +48,12 @@ namespace revit_mcp_plugin.UI
             var chat = _chat;
             if (chat == null || _refreshing) return;
             _refreshing = true;
-            try { await chat.RefreshAsync(); }
+            try
+            {
+                if (chat.State != null && DateTime.UtcNow - chat.LastSnapshotUtc > TimeSpan.FromSeconds(15))
+                    throw new TimeoutException("Chatten opdateres ikke længere. Åbn den i Codex-appen, og forbind igen.");
+                await chat.RefreshAsync();
+            }
             catch (Exception ex) { if (_chat == chat) Disconnect(ex.Message); }
             finally { _refreshing = false; }
         }

@@ -21,7 +21,9 @@ namespace revit_mcp_plugin.UI
         private string _client = "initializing-client", _owner, _thread;
         private bool _disposed;
         private string _pendingMessageId;
+        private readonly TaskCompletionSource<bool> _firstSnapshot = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         public JObject State { get; private set; }
+        public DateTime LastSnapshotUtc { get; private set; }
         public bool CanSend => State != null && !IsBusy(State) && _pendingMessageId == null;
         public event Action<JObject> Snapshot;
         public event Action<Exception> Disconnected;
@@ -43,6 +45,10 @@ namespace revit_mcp_plugin.UI
             var owner = await RequestAsync("thread-owner-discovery", new JObject { ["hostId"] = "local", ["conversationId"] = thread }, 1, null, token).ConfigureAwait(false);
             _owner = (string)owner["handledByClientId"] ?? throw new IOException("Open this chat in the Codex desktop app first.");
             await RefreshAsync().ConfigureAwait(false);
+            using (var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(12)))
+            using (token.Register(() => _firstSnapshot.TrySetCanceled()))
+            using (timeout.Token.Register(() => _firstSnapshot.TrySetException(new TimeoutException("Codex did not provide shared history. Reconnect to the open desktop chat."))))
+                await _firstSnapshot.Task.ConfigureAwait(false);
         }
 
         // Re-request a complete snapshot instead of guessing at version-specific
@@ -147,6 +153,9 @@ namespace revit_mcp_plugin.UI
                     if (type == "response" && _pending.TryGetValue((string)message["requestId"] ?? "", out var done)) done.TrySetResult(message);
                     else if (type == "client-discovery-request") await WriteAsync(new JObject
                     { ["type"] = "client-discovery-response", ["requestId"] = message["requestId"], ["response"] = new JObject { ["canHandle"] = false } }).ConfigureAwait(false);
+                    else if (type == "broadcast" && (string)message["method"] == "client-status-changed"
+                        && (string)message["params"]?["clientId"] == _owner && (string)message["params"]?["status"] == "disconnected")
+                        throw new IOException("The Codex chat owner disconnected. Open the chat in the app and reconnect.");
                     else if (type == "broadcast" && (string)message["method"] == "thread-stream-state-changed"
                         && (string)message["sourceClientId"] == _owner
                         && (string)message["params"]?["hostId"] == "local"
@@ -158,16 +167,19 @@ namespace revit_mcp_plugin.UI
                         var state = change["conversationState"] as JObject;
                         if ((string)state?["id"] != _thread) throw new IOException("Codex returned a different chat.");
                         State = state;
+                        LastSnapshotUtc = DateTime.UtcNow;
                         if (_pendingMessageId != null)
                             foreach (var turn in CodexChatTranscript.Turns(state))
                                 if ((string)turn["params"]?["clientUserMessageId"] == _pendingMessageId) { _pendingMessageId = null; break; }
                         Snapshot?.Invoke(state);
+                        _firstSnapshot.TrySetResult(true);
                     }
                 }
             }
             catch (Exception ex)
             {
                 foreach (var done in _pending.Values) done.TrySetException(ex);
+                _firstSnapshot.TrySetException(ex);
                 if (!_disposed) Disconnected?.Invoke(ex);
             }
         }
@@ -177,6 +189,7 @@ namespace revit_mcp_plugin.UI
             if (_disposed) return;
             _disposed = true;
             _pipe.Dispose(); // Router removes this follower; never stops the owner/app.
+            _firstSnapshot.TrySetCanceled();
             foreach (var done in _pending.Values) done.TrySetException(new IOException("Chat disconnected."));
         }
     }
