@@ -151,6 +151,19 @@
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
 
+                    <!-- Drawings selected for the next message -->
+                    <StackPanel Grid.Row="0">
+                        <ItemsControl x:Name="AttachmentList" Margin="14,8,14,0">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <DockPanel Margin="0,0,0,4" LastChildFill="True">
+                                        <Button DockPanel.Dock="Right" Content="Remove" Tag="{Binding}" Click="RemoveAttachment_Click"
+                                                AutomationProperties.Name="Remove drawing" Padding="5,1" Margin="6,0,0,0"/>
+                                        <TextBlock Text="{Binding Label}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" FontSize="11"/>
+                                    </DockPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
                     <!-- Text input -->
                     <Grid Grid.Row="0">
                         <TextBox x:Name="ChatInput"
@@ -158,14 +171,15 @@
                                  BorderThickness="0" Padding="16,14,50,14" FontSize="14"
                                  AcceptsReturn="True" TextWrapping="Wrap"
                                  MaxHeight="150" VerticalScrollBarVisibility="Auto"
-                                 KeyDown="ChatInput_KeyDown"
+                                 PreviewKeyDown="ChatInput_KeyDown"
                                  VerticalContentAlignment="Top"
                                  FontFamily="Segoe UI"/>
                         <!-- Placeholder -->
-                        <TextBlock x:Name="Placeholder" Text="Reply... (Ctrl+Enter to send)" IsHitTestVisible="False"
+                        <TextBlock x:Name="Placeholder" Text="Reply or attach a drawing..." IsHitTestVisible="False"
                                    Foreground="#AAA" FontSize="14" Padding="18,14,0,0"
                                    FontFamily="Segoe UI"/>
                     </Grid>
+                    </StackPanel>
 
                     <!-- Bottom bar with send button -->
                     <Grid Grid.Row="1" Margin="8,0,8,6">
@@ -174,13 +188,24 @@
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
 
-                        <!-- Spacer (model and planning mode are managed automatically by Codex) -->
-                        <Border Grid.Column="0" />
+                        <StackPanel Grid.Column="0" Margin="0,0,8,0">
+                            <Button x:Name="AttachButton" Content="+ Attach drawing" Click="AttachDrawing_Click"
+                                    HorizontalAlignment="Left" Background="Transparent" BorderThickness="0" Padding="6,4"
+                                    ToolTip="PNG/JPEG · up to 4 images · 10 MB each, 20 MB total. Selected drawings are sent to your Codex account when you press Send."/>
+                            <TextBlock Text="Enter to send · Shift+Enter for new line" FontSize="10" Foreground="#777" Margin="6,2,0,0" TextWrapping="Wrap"/>
+                            <Expander Header="Codex usage" FontSize="11" Margin="4,6,0,0">
+                                <StackPanel>
+                                    <TextBlock x:Name="UsageText" Text="Usage appears after connecting with your first message." TextWrapping="Wrap" Foreground="#666" Margin="4,4,0,4"/>
+                                    <Button x:Name="RefreshUsageButton" Content="Refresh usage" Click="RefreshUsage_Click" HorizontalAlignment="Left" Padding="6,2"/>
+                                </StackPanel>
+                            </Expander>
+                        </StackPanel>
 
                         <!-- Send button -->
                         <Button x:Name="SendButton" Grid.Column="1" Click="Send_Click"
+                                AutomationProperties.Name="Send message" ToolTip="Send message (Enter)"
                                 Background="Transparent" BorderThickness="0"
-                                Padding="0" Cursor="Hand" VerticalAlignment="Center">
+                                Padding="0" Cursor="Hand" VerticalAlignment="Top" Margin="0,3,0,0">
                             <Border Width="28" Height="28" CornerRadius="14" Background="#202123">
                                 <Path Data="M5,3L19,12L5,21Z" Fill="White"
                                       Width="9" Height="11" Stretch="Uniform"
