@@ -9,7 +9,7 @@ const { version } = require("../package.json");
 
 // Create server instance
 const server = new McpServer({
-  name: "mcp-server-for-revit",
+  name: "vue-studio-revit",
   version,
 });
 
@@ -24,7 +24,7 @@ async function main() {
   // Connect to transport layer
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  console.error("Revit MCP Server started successfully");
+  console.error("VUE Studio Revit server started successfully");
 }
 
 main().catch((error) => {

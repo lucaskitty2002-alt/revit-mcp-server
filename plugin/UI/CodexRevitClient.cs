@@ -11,6 +11,8 @@ using Newtonsoft.Json.Linq;
 
 namespace revit_mcp_plugin.UI
 {
+    // Compatibility client for older standalone panels. VUE Studio's current UI
+    // uses CodexSharedChat / the original desktop window, not this separate thread.
     public sealed class CodexRevitClient : IDisposable
     {
         private readonly string _pluginDirectory;

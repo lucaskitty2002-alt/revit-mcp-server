@@ -4,11 +4,11 @@ using System.Runtime.InteropServices;
 // ?????????????
 // ?????????????
 // ??????????
-[assembly: AssemblyTitle("mcp-servers-for-revit-plugin")]
-[assembly: AssemblyDescription("")]
+[assembly: AssemblyTitle("VUE Studio")]
+[assembly: AssemblyDescription("AI-assisted Revit workflows for Lucas and Rasmus' VUE project")]
 [assembly: AssemblyConfiguration("")]
-[assembly: AssemblyCompany("P R C")]
-[assembly: AssemblyProduct("mcp-servers-for-revit-plugin")]
+[assembly: AssemblyCompany("VUE Studio contributors")]
+[assembly: AssemblyProduct("VUE Studio")]
 [assembly: AssemblyCopyright("Copyright � P R C 2025")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
@@ -32,8 +32,8 @@ using System.Runtime.InteropServices;
 //?????????,?????�???�?�???�????
 //???? "*",????:
 // [assembly: AssemblyVersion("1.0.0.0")]
-[assembly: AssemblyVersion("2.6.3.0")]
-[assembly: AssemblyFileVersion("2.6.3.0")]
+[assembly: AssemblyVersion("2.7.0.0")]
+[assembly: AssemblyFileVersion("2.7.0.0")]
 
 #if NET5_0_OR_GREATER || NETCOREAPP3_1_OR_GREATER
 [assembly: System.Runtime.Versioning.SupportedOSPlatformAttribute("windows")]

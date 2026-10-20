@@ -87,6 +87,9 @@ try
 {
     var usage = new CodexUsage();
     Assert(usage.Describe().Contains("unavailable") && !usage.Describe().Contains("0% left"), "Unknown usage is never displayed as zero or a full quota");
+    usage.SetTokens(JObject.Parse("{total:{totalTokens:1200},last:{totalTokens:200}}"));
+    Assert(usage.Describe().Contains("This chat (cumulative)") && usage.Describe().Contains("Latest reported usage: 200 tokens") && !usage.Describe().Contains("Last turn:"), "Token report distinguishes cumulative processing from a latest sample, not a whole-turn or remaining-quota claim");
+    usage.Reset();
     usage.SetLimits(JObject.Parse("{rateLimits:{primary:{usedPercent:90}},rateLimitsByLimitId:{codex:{primary:{usedPercent:25,windowDurationMins:300,resetsAt:1792500000}},other:{limitName:'Other model',primary:{usedPercent:10,windowDurationMins:15},secondary:null}}}"));
     Assert(usage.Describe().Contains("75% left") && usage.Describe().Contains("Other model · 15m: 90% left") && !usage.Describe().Contains("10% left"), "Named quota pools take precedence over legacy data, with dynamic windows and reset times");
     usage.SetLimits(JObject.Parse("{rateLimits:{primary:{usedPercent:120},secondary:{usedPercent:null}}}"));

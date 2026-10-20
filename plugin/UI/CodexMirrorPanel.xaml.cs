@@ -15,12 +15,14 @@ namespace revit_mcp_plugin.UI
         private Window _hostingWindow;
         private bool _attaching;
         private int _operation;
+        private string _statusKind = "info";
+        private bool _showCompactStatus;
 
         public CodexMirrorPanel()
         {
             InitializeComponent();
             Surface.Status += text => { if (!_attaching && !_overlay.HasLease) SetStatus("Forhåndsvisning", text, "info"); };
-            _timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) };
+            _timer = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromMilliseconds(500) };
             _timer.Tick += (s, e) =>
             {
                 try
@@ -32,9 +34,10 @@ namespace revit_mcp_plugin.UI
                         Stop();
                         SetStatus("Codex-vinduet er lukket", "Åbn appen og opdater vindueslisten for at forbinde igen.", "info");
                     }
-                    else if (_overlay.IsPaused) SetStatus("Vinduesplaceringen er sat på pause", _overlay.PausedReason, "info");
-                    else if (_overlay.IsVisiblyPlaced()) SetStatus("Codex-vinduet er placeret", "Klik i appens skrivefelt. Frigør sender vinduet tilbage til skrivebordet.", "info");
-                    else SetStatus("Codex er i baggrunden", "Vælg Revit eller tryk Vis igen for at hente vinduet frem.", "info");
+                    else if (_overlay.IsPaused) SetStatus("Codex er på pause", _overlay.PausedReason, "warning");
+                    else if (_overlay.IsVisiblyPlaced()) SetStatus("Codex-vinduet er placeret", "Klik i appens skrivefelt. Skrivebord sender vinduet tilbage til skrivebordet.", "info");
+                    else SetStatus("Codex er i baggrunden", "Tryk Vis igen, eller brug appen på skrivebordet.", "warning");
+                    _timer.Interval = TimeSpan.FromMilliseconds(_overlay.IsPaused ? 1200 : 500);
                     UpdateControls();
                 }
                 catch (Exception ex) { Fail(ex, "update_failed"); }
@@ -87,7 +90,7 @@ namespace revit_mcp_plugin.UI
         {
             if (ActionGroup == null) return;
             bool compact = _attaching || _overlay.HasLease;
-            bool narrow = !compact && ActualWidth < 520;
+            bool narrow = ActualWidth < 520;
             WelcomeHeader.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
             Footer.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
             PickerGroup.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
@@ -95,11 +98,13 @@ namespace revit_mcp_plugin.UI
             CompactLabel.Visibility = compact ? Visibility.Visible : Visibility.Collapsed;
             CompactLabel.Text = _overlay.IsPaused ? "På pause" : "Codex";
             CompactLabel.ToolTip = StatusTitle.Text + "\n" + StatusText.Text;
-            StatusBorder.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
+            StatusBorder.Visibility = compact && !_showCompactStatus ? Visibility.Collapsed : Visibility.Visible;
+            StatusBorder.Padding = compact ? new Thickness(10, 7, 10, 7) : new Thickness(12, 10, 12, 10);
             PanelGrid.Margin = compact ? new Thickness(8) : new Thickness(16);
             ConnectionCard.Padding = compact ? new Thickness(8) : new Thickness(12);
             ConnectionCard.Margin = new Thickness(0, 0, 0, compact ? 6 : 12);
             Grid.SetColumnSpan(PickerGroup, narrow ? 2 : 1);
+            Grid.SetColumnSpan(CompactLabel, narrow ? 2 : 1);
             Grid.SetRow(ActionGroup, narrow ? 1 : 0);
             Grid.SetColumn(ActionGroup, narrow ? 0 : 1);
             Grid.SetColumnSpan(ActionGroup, narrow ? 2 : 1);
@@ -120,14 +125,20 @@ namespace revit_mcp_plugin.UI
             ReleaseButton.IsEnabled = !_attaching;
             EmptyState.Visibility = _attaching || attached || Surface.IsSharing ? Visibility.Collapsed : Visibility.Visible;
             OpenButton.Visibility = WindowPicker.Items.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+            DesktopButton.Visibility = !attached && WindowPicker.SelectedItem is CodexDesktopWindow ? Visibility.Visible : Visibility.Collapsed;
             UpdateLayoutMode();
         }
         private void SetStatus(string title, string detail, string kind)
         {
             if (StatusTitle == null) return;
+            // Timer ticks should not remeasure every text element when nothing changed.
+            if (StatusTitle.Text == title && StatusText.Text == detail && _statusKind == kind) return;
+            _statusKind = kind;
+            _showCompactStatus = kind == "warning" || kind == "error";
             StatusTitle.Text = title; StatusText.Text = detail;
-            StatusBorder.Background = Brush(kind == "error" ? "#FEF3F2" : kind == "success" ? "#ECFDF3" : "#EFF4FF");
-            StatusDot.Fill = Brush(kind == "error" ? "#D92D20" : kind == "success" ? "#039855" : "#2563EB");
+            StatusBorder.Background = Brush(kind == "error" ? "#FFF1F0" : kind == "warning" ? "#FFF7E8" : "#EDF6F5");
+            StatusDot.Fill = Brush(kind == "error" ? "#C44338" : kind == "warning" ? "#B97B17" : "#147D73");
+            UpdateLayoutMode();
         }
         private static Brush Brush(string color) => new SolidColorBrush((Color)ColorConverter.ConvertFromString(color));
         private DesktopMirrorSession.Native.Rect ScreenBounds()
@@ -164,9 +175,9 @@ namespace revit_mcp_plugin.UI
                 await System.Threading.Tasks.Task.Delay(200);
                 if (operation != _operation || !_overlay.HasLease) return;
                 _overlay.Update(ScreenBounds());
-                if (_overlay.IsPaused) SetStatus("Vinduesplaceringen er sat på pause", _overlay.PausedReason, "info");
+                if (_overlay.IsPaused) SetStatus("Codex er på pause", _overlay.PausedReason, "warning");
                 else if (_overlay.IsVisiblyPlaced()) SetStatus("Codex-vinduet er placeret", "Placeringen er kontrolleret. Klik i appens skrivefelt for at bruge den.", "info");
-                else SetStatus("Codex er i baggrunden", "Windows har ikke bekræftet synligheden. Tryk Vis igen eller frigør vinduet.", "info");
+                else SetStatus("Codex er i baggrunden", "Windows har ikke bekræftet synligheden. Tryk Vis igen eller frigør vinduet.", "warning");
                 SaveDiagnostic("attached", null);
             }
             catch (Exception ex) { Fail(ex, "attach_failed"); }
@@ -185,7 +196,20 @@ namespace revit_mcp_plugin.UI
         }
         private void Stop_Click(object sender, RoutedEventArgs e)
         {
-            try { Stop(); SetStatus("Codex er frigjort", "Vinduet er tilbage på skrivebordet. Du kan vise det i Revit igen.", "info"); }
+            UseDesktop();
+        }
+        private void Desktop_Click(object sender, RoutedEventArgs e) => UseDesktop();
+        private void UseDesktop()
+        {
+            try
+            {
+                var selected = WindowPicker.SelectedItem as CodexDesktopWindow;
+                Stop();
+                bool activated = selected != null && DesktopOverlayLease.ShowOnDesktop(selected);
+                SetStatus("Codex på skrivebordet", activated
+                    ? "Fortsæt i samme app og samme samtale. Du kan vise vinduet her igen."
+                    : "Vinduet er frigjort. Vælg Codex i proceslinjen for at fortsætte i samme samtale.", "info");
+            }
             catch (Exception ex) { Fail(ex, "release_failed"); }
         }
         private void More_Click(object sender, RoutedEventArgs e)
@@ -217,7 +241,7 @@ namespace revit_mcp_plugin.UI
             else try { Directory.CreateDirectory(CodexSettings.SettingsDirectory); File.WriteAllText(Path.Combine(CodexSettings.SettingsDirectory, "window-diagnostics.json"), _overlay.LastDiagnostic); } catch { }
             string message = ex.Message;
             try { Stop(); } catch (Exception releaseError) { message += " Frigørelse mislykkedes: " + releaseError.Message; }
-            SetStatus("Codex kunne ikke vises", message, "error"); UpdateControls();
+            SetStatus(ex is DesktopWindowFitException ? "Panelet er for lille til Codex" : "Codex kunne ikke vises", message, "error"); UpdateControls();
         }
         public void Stop()
         {

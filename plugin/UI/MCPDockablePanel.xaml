@@ -1,51 +1,97 @@
 <Page x:Class="revit_mcp_plugin.UI.MCPDockablePanel"
  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
- xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:local="clr-namespace:revit_mcp_plugin.UI" Background="#FAFAFA"
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:local="clr-namespace:revit_mcp_plugin.UI"
+ Background="#F2F6F4" FontFamily="Segoe UI" Foreground="#183533"
  Loaded="Page_Loaded" Unloaded="Page_Unloaded" IsVisibleChanged="Page_IsVisibleChanged">
- <TabControl BorderThickness="0" Background="#F7F8FA">
-  <TabControl.Resources>
-   <Style TargetType="TabItem">
-    <Setter Property="Foreground" Value="#667085"/><Setter Property="FontFamily" Value="Segoe UI"/>
-    <Setter Property="FontSize" Value="12"/><Setter Property="Margin" Value="8,6,0,5"/>
-    <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="TabItem">
-     <Border x:Name="TabBorder" Background="Transparent" CornerRadius="7" Padding="12,7">
-      <ContentPresenter ContentSource="Header"/>
+ <Page.Resources>
+  <Style TargetType="Button">
+   <Setter Property="Background" Value="White"/><Setter Property="Foreground" Value="#183533"/>
+   <Setter Property="BorderBrush" Value="#C9D9D3"/><Setter Property="BorderThickness" Value="1"/>
+   <Setter Property="Padding" Value="12,8"/><Setter Property="MinHeight" Value="34"/><Setter Property="Cursor" Value="Hand"/>
+   <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button">
+    <Border x:Name="Frame" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" Padding="{TemplateBinding Padding}" CornerRadius="7">
+     <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+    </Border>
+    <ControlTemplate.Triggers>
+     <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Frame" Property="Opacity" Value="0.8"/></Trigger>
+     <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Frame" Property="BorderBrush" Value="#147D73"/><Setter TargetName="Frame" Property="BorderThickness" Value="2"/></Trigger>
+     <Trigger Property="IsEnabled" Value="False"><Setter TargetName="Frame" Property="Opacity" Value="0.4"/></Trigger>
+    </ControlTemplate.Triggers>
+   </ControlTemplate></Setter.Value></Setter>
+  </Style>
+  <Style TargetType="TabItem">
+   <Setter Property="Foreground" Value="#637A73"/><Setter Property="FontSize" Value="12"/><Setter Property="Margin" Value="4,4,0,4"/>
+   <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="TabItem">
+    <Border x:Name="TabBorder" CornerRadius="7" Padding="12,8"><ContentPresenter ContentSource="Header"/></Border>
+    <ControlTemplate.Triggers>
+     <Trigger Property="IsSelected" Value="True"><Setter TargetName="TabBorder" Property="Background" Value="#DDEDE6"/><Setter Property="Foreground" Value="#11695F"/><Setter Property="FontWeight" Value="SemiBold"/></Trigger>
+     <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="TabBorder" Property="Opacity" Value="0.75"/></Trigger>
+    </ControlTemplate.Triggers>
+   </ControlTemplate></Setter.Value></Setter>
+  </Style>
+ </Page.Resources>
+ <Grid>
+  <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+  <Border Background="#132B2B" Padding="12,10">
+   <Grid>
+    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+     <Border Width="30" Height="30" CornerRadius="8" Background="#A8D9C1" Margin="0,0,9,0">
+      <Path Data="M 5,7 L 12,23 L 19,7 M 10,7 L 17,23 L 24,7" Stroke="#132B2B" StrokeThickness="2" HorizontalAlignment="Center" VerticalAlignment="Center"/>
      </Border>
-     <ControlTemplate.Triggers>
-      <Trigger Property="IsSelected" Value="True"><Setter TargetName="TabBorder" Property="Background" Value="#EAF0FF"/><Setter Property="Foreground" Value="#1D4ED8"/><Setter Property="FontWeight" Value="SemiBold"/></Trigger>
-      <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="TabBorder" Property="Opacity" Value="0.75"/></Trigger>
-     </ControlTemplate.Triggers>
-    </ControlTemplate></Setter.Value></Setter>
-   </Style>
-  </TabControl.Resources>
-  <TabItem Header="Codex-vindue"><local:CodexMirrorPanel x:Name="MirrorPanel"/></TabItem>
-  <TabItem Header="Tekstchat">
- <Grid Margin="12">
-  <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-  <StackPanel>
-   <TextBlock Text="Codex · delt chat" FontSize="19" FontWeight="SemiBold"/>
-   <TextBlock Text="Samme samtale som i Codex-appen · eksperimentel forbindelse" Foreground="#666" TextWrapping="Wrap" Margin="0,4,0,10"/>
-   <WrapPanel>
-    <Button Content="Åbn Codex" Click="OpenCodex_Click" Padding="10,5" Margin="0,0,6,6"/>
-    <Button x:Name="RefreshButton" Content="Hent chats" Click="Refresh_Click" Padding="10,5" Margin="0,0,6,6"/>
-    <Button x:Name="ConnectButton" Content="Forbind chat" Click="Connect_Click" Padding="10,5" Margin="0,0,6,6"/>
-   </WrapPanel>
-   <ComboBox x:Name="ThreadPicker" DisplayMemberPath="Label" MinHeight="28" MaxDropDownHeight="240"/>
-   <TextBlock x:Name="ThreadIdentity" Foreground="#666" TextWrapping="Wrap" FontSize="11" Margin="0,5,0,8"/>
-  </StackPanel>
-  <ScrollViewer x:Name="HistoryScroll" Grid.Row="1" VerticalScrollBarVisibility="Auto" Margin="0,6">
-   <TextBox x:Name="History" IsReadOnly="True" TextWrapping="Wrap" BorderThickness="0" Background="Transparent" Padding="6" Text="Vælg en eksisterende chat, som er åben i Codex-appen, og tryk Forbind chat."/>
-  </ScrollViewer>
-  <StackPanel Grid.Row="2">
-   <TextBlock Text="Godkendelser, spørgsmål, billeder og øvrige appfunktioner håndteres i Codex-appen." TextWrapping="Wrap" Foreground="#666" FontSize="11" Margin="0,0,0,6"/>
-   <TextBox x:Name="Composer" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="82" MaxHeight="180" VerticalScrollBarVisibility="Auto" Padding="10" PreviewKeyDown="Composer_KeyDown"/>
-   <Button x:Name="SendButton" Content="Send · Enter" HorizontalAlignment="Right" Padding="18,7" Margin="0,6,0,6" Click="Send_Click" IsEnabled="False"/>
-  </StackPanel>
-  <StackPanel Grid.Row="3">
-   <TextBlock x:Name="StatusText" Text="Ikke forbundet · Shift+Enter giver en ny linje." TextWrapping="Wrap" Foreground="#444"/>
-   <TextBlock x:Name="RevitStatus" FontSize="11" Foreground="#666" TextWrapping="Wrap" Margin="0,4,0,0"/>
-  </StackPanel>
+     <StackPanel><TextBlock Text="VUE STUDIO" FontSize="14" FontWeight="SemiBold" Foreground="White"/><TextBlock Text="Din BIM-assistent" FontSize="10" Foreground="#B5CEC5"/></StackPanel>
+    </StackPanel>
+    <Button x:Name="PowerButton" Grid.Column="1" Click="Power_Click" Padding="9,6" Margin="8,0,0,0" Background="#233E3C" BorderBrush="#47665E" Foreground="White" AutomationProperties.Name="Tænd eller sluk Revit MCP">
+     <StackPanel Orientation="Horizontal"><Ellipse x:Name="PowerDot" Width="7" Height="7" Fill="#A1ADA8" Margin="0,0,7,0"/><TextBlock x:Name="PowerLabel" Text="MCP slukket" FontSize="11" VerticalAlignment="Center"/></StackPanel>
+    </Button>
+   </Grid>
+  </Border>
+  <TabControl x:Name="WorkspaceTabs" Grid.Row="1" BorderThickness="0" Background="#F2F6F4" SelectionChanged="WorkspaceTabs_SelectionChanged">
+   <TabItem x:Name="DesktopTab" Header="Codex"><local:CodexMirrorPanel x:Name="MirrorPanel"/></TabItem>
+   <TabItem x:Name="TextTab" Header="Hurtigchat">
+    <Grid Margin="12">
+     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+     <StackPanel>
+      <TextBlock Text="Fortsæt din samtale" FontSize="19" FontWeight="SemiBold"/>
+      <TextBlock Text="Send tekst til en eksisterende chat i Codex-appen." Foreground="#637A73" TextWrapping="Wrap" Margin="0,4,0,10"/>
+      <WrapPanel>
+       <Button Content="Åbn Codex" Click="OpenCodex_Click" Margin="0,0,6,6"/>
+       <Button x:Name="RefreshButton" Content="Hent chats" Click="Refresh_Click" Margin="0,0,6,6"/>
+       <Button x:Name="ConnectButton" Content="Forbind" Click="Connect_Click" Margin="0,0,6,6"/>
+      </WrapPanel>
+      <ComboBox x:Name="ThreadPicker" DisplayMemberPath="Label" MinHeight="30" MaxDropDownHeight="240" AutomationProperties.Name="Eksisterende Codex-chat"/>
+      <TextBlock x:Name="ThreadIdentity" Foreground="#637A73" TextWrapping="Wrap" FontSize="10" Margin="0,5,0,8"/>
+     </StackPanel>
+     <Border Grid.Row="1" Background="White" CornerRadius="9" BorderBrush="#DCE6E1" BorderThickness="1" Margin="0,6">
+      <ScrollViewer x:Name="HistoryScroll" VerticalScrollBarVisibility="Auto">
+       <TextBox x:Name="History" IsReadOnly="True" TextWrapping="Wrap" BorderThickness="0" Background="Transparent" Padding="10" Text="Vælg din åbne chat, og tryk Forbind. Der oprettes ingen ny samtale."/>
+      </ScrollViewer>
+     </Border>
+     <StackPanel Grid.Row="2">
+      <TextBlock Text="Brug Codex-fanen til billeder, godkendelser og alle appens funktioner." TextWrapping="Wrap" Foreground="#637A73" FontSize="11" Margin="0,3,0,6"/>
+      <TextBox x:Name="Composer" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="72" MaxHeight="180" VerticalScrollBarVisibility="Auto" Padding="10" BorderBrush="#C9D9D3" PreviewKeyDown="Composer_KeyDown" AutomationProperties.Name="Besked til den forbundne Codex-chat"/>
+      <Button x:Name="SendButton" Content="Send · Enter" HorizontalAlignment="Right" Background="#147D73" BorderBrush="#147D73" Foreground="White" Padding="18,7" Margin="0,6" Click="Send_Click" IsEnabled="False"/>
+     </StackPanel>
+     <StackPanel Grid.Row="3">
+      <TextBlock x:Name="StatusText" Text="Ikke forbundet · Shift+Enter giver en ny linje." TextWrapping="Wrap" Foreground="#47665E" FontSize="11"/>
+      <TextBlock x:Name="RevitStatus" FontSize="11" Foreground="#637A73" TextWrapping="Wrap" Margin="0,4,0,0"/>
+     </StackPanel>
+    </Grid>
+   </TabItem>
+   <TabItem x:Name="WorkflowTab" Header="Arbejdsgange">
+    <ScrollViewer VerticalScrollBarVisibility="Auto"><StackPanel Margin="14">
+     <TextBlock Text="Fra grundlag til BIM" FontSize="21" FontWeight="SemiBold" Margin="0,4,0,6"/>
+     <TextBlock Text="Vælg en startbesked. Tilpas den i hurtigchatten før afsendelse. Vedlæg den relevante instruktionsbog og kildefiler i Codex." TextWrapping="Wrap" Foreground="#637A73" Margin="0,0,0,16"/>
+     <ItemsControl x:Name="WorkflowList">
+      <ItemsControl.ItemTemplate><DataTemplate>
+       <Border Background="White" CornerRadius="10" Padding="14" Margin="0,0,0,10" BorderBrush="#DCE6E1" BorderThickness="1">
+        <StackPanel><TextBlock Text="{Binding Title}" FontWeight="SemiBold"/><TextBlock Text="{Binding Description}" TextWrapping="Wrap" Foreground="#637A73" Margin="0,5,0,8"/><Button Content="Klargør analyse" Tag="{Binding Prompt}" Click="Workflow_Click" HorizontalAlignment="Left"/></StackPanel>
+       </Border>
+      </DataTemplate></ItemsControl.ItemTemplate>
+     </ItemsControl>
+     <TextBlock Text="Startbeskeder er vejledning. De dokumenterer ikke, at funktionerne er afprøvet i din model." Foreground="#637A73" FontSize="11" TextWrapping="Wrap"/>
+    </StackPanel></ScrollViewer>
+   </TabItem>
+  </TabControl>
  </Grid>
- </TabItem>
- </TabControl>
 </Page>

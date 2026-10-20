@@ -22,6 +22,20 @@ namespace revit_mcp_plugin.UI
         public string PausedReason { get; private set; } = "";
         public string LastDiagnostic { get; private set; } = "";
         public DesktopOverlayLease(string recoveryFile) { _recoveryFile = recoveryFile; }
+
+        // A fallback uses the original app, without reparenting, another chat or
+        // inference request. Validate the selected identity before activation.
+        public static bool ShowOnDesktop(CodexDesktopWindow window)
+        {
+            if (window == null || !N.IsWindow(window.Handle))
+                throw new InvalidOperationException("Codex-vinduet er lukket. Opdater vindueslisten.");
+            N.GetWindowThreadProcessId(window.Handle, out uint pid);
+            if (pid != window.ProcessId || DesktopMirrorSession.Native.GetAncestor(window.Handle, 2) != window.Handle)
+                throw new InvalidOperationException("Vinduets identitet er ændret. Opdater vindueslisten.");
+            if (DesktopMirrorSession.Native.IsIconic(window.Handle)) N.ShowWindow(window.Handle, 9);
+            else if (!N.IsWindowVisible(window.Handle)) N.ShowWindow(window.Handle, 4);
+            return SetForegroundWindow(window.Handle);
+        }
         public void Attach(CodexDesktopWindow window, IntPtr host, DesktopMirrorSession.Native.Rect bounds)
         {
             if (_snapshot != null) throw new InvalidOperationException("Frigør det aktuelle vindue først.");
@@ -103,7 +117,7 @@ namespace revit_mcp_plugin.UI
                         CaptureDiagnostic("size_rejected", "Requested and actual window bounds differ.");
                         if (Math.Abs(current.Width - bounds.Width) <= 3 && Math.Abs(current.Height - bounds.Height) <= 3)
                             throw new InvalidOperationException("Windows flyttede ikke Codex hen til panelet. Frigør vinduet og prøv igen.");
-                        throw new InvalidOperationException("Codex passer ikke i panelet. Ønsket " + bounds.Width + " × " + bounds.Height + " px, faktisk " + current.Width + " × " + current.Height + " px. Gør panelet større og prøv igen.");
+                        throw new DesktopWindowFitException(bounds.Width, bounds.Height, current.Width, current.Height);
                     }
                 }
                 // A docked/floating native host may cover an otherwise correctly sized
@@ -286,5 +300,22 @@ namespace revit_mcp_plugin.UI
         [DllImport("user32.dll")] private static extern bool IsWindowEnabled(IntPtr window);
         [DllImport("user32.dll")] private static extern IntPtr GetLastActivePopup(IntPtr window);
         [DllImport("user32.dll")] private static extern IntPtr WindowFromPoint(DesktopMirrorSession.Native.Point point);
+    }
+
+    public sealed class DesktopWindowFitException : InvalidOperationException
+    {
+        public int AvailableWidth { get; }
+        public int AvailableHeight { get; }
+        public int RequiredWidth { get; }
+        public int RequiredHeight { get; }
+
+        public DesktopWindowFitException(int availableWidth, int availableHeight, int requiredWidth, int requiredHeight)
+            : base("Codex kræver mere plads end panelets " + availableWidth + " × " + availableHeight +
+                " px. Appen bruger " + requiredWidth + " × " + requiredHeight +
+                " px. Gør Revit-panelet større, eller vælg Brug på skrivebord.")
+        {
+            AvailableWidth = availableWidth; AvailableHeight = availableHeight;
+            RequiredWidth = requiredWidth; RequiredHeight = requiredHeight;
+        }
     }
 }

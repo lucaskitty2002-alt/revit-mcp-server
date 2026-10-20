@@ -18,18 +18,27 @@ namespace revit_mcp_plugin.UI
         private readonly NamedPipeClientStream _pipe;
         private readonly ConcurrentDictionary<string, TaskCompletionSource<JObject>> _pending = new ConcurrentDictionary<string, TaskCompletionSource<JObject>>();
         private readonly SemaphoreSlim _writeLock = new SemaphoreSlim(1, 1);
+        private readonly object _stateGate = new object();
+        private readonly Func<DateTime> _utcNow;
+        private DateTime _lastRefreshUtc;
+        private DateTime? _snapshotRequestedUtc;
+        private bool _historyChanged, _disconnected;
         private string _client = "initializing-client", _owner, _thread;
         private bool _disposed;
         private string _pendingMessageId;
         private readonly TaskCompletionSource<bool> _firstSnapshot = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         public JObject State { get; private set; }
         public DateTime LastSnapshotUtc { get; private set; }
-        public bool CanSend => State != null && !IsBusy(State) && _pendingMessageId == null;
+        public bool CanSend { get { lock (_stateGate) return !_disposed && !_disconnected && State != null && !IsBusy(State) && _pendingMessageId == null; } }
+        // An idle conversation need not emit snapshots. Only an unanswered explicit
+        // refresh is a connection failure; elapsed time since an idle snapshot is not.
+        public bool IsSnapshotOverdue { get { lock (_stateGate) return _snapshotRequestedUtc.HasValue && _utcNow() - _snapshotRequestedUtc.Value > TimeSpan.FromSeconds(15); } }
         public event Action<JObject> Snapshot;
         public event Action<Exception> Disconnected;
 
-        public CodexSharedChat(string pipeName = "codex-ipc")
+        public CodexSharedChat(string pipeName = "codex-ipc", Func<DateTime> utcNow = null)
         {
+            _utcNow = utcNow ?? (() => DateTime.UtcNow);
             _pipe = new NamedPipeClientStream(".", pipeName, PipeDirection.InOut, PipeOptions.Asynchronous,
                 System.Security.Principal.TokenImpersonationLevel.Identification);
         }
@@ -51,22 +60,49 @@ namespace revit_mcp_plugin.UI
                 await _firstSnapshot.Task.ConfigureAwait(false);
         }
 
-        // Re-request a complete snapshot instead of guessing at version-specific
-        // patches or accepted-text deltas. UI throttles this to once per two seconds.
-        public Task RefreshAsync() => WriteAsync(new JObject
+        // The private desktop protocol's patches are version-specific, so request a
+        // full snapshot while work is active. Idle panels need only a 30s heartbeat.
+        // Coalesce callers and await the outstanding snapshot before requesting more.
+        // These are local IPC reads, never model inference or prompt replay.
+        public async Task RefreshAsync(bool force = false)
         {
-            ["type"] = "broadcast", ["method"] = "thread-stream-following-changed", ["version"] = 1,
-            ["sourceClientId"] = _client, ["targetClientIds"] = new JArray(_owner),
-            ["params"] = new JObject { ["hostId"] = "local", ["conversationId"] = _thread, ["following"] = true }
-        });
+            DateTime requested;
+            lock (_stateGate)
+            {
+                if (_disposed) throw new ObjectDisposedException(nameof(CodexSharedChat));
+                if (_disconnected) throw new IOException("Codex disconnected. Reconnect to the chat.");
+                if (_snapshotRequestedUtc.HasValue) return;
+                requested = _utcNow();
+                var interval = State == null || IsBusy(State) || _pendingMessageId != null || _historyChanged ? TimeSpan.FromSeconds(2) : TimeSpan.FromSeconds(30);
+                if (!force && _lastRefreshUtc != default(DateTime) && requested - _lastRefreshUtc < interval) return;
+                _lastRefreshUtc = requested;
+                _snapshotRequestedUtc = requested;
+            }
+            try
+            {
+                await WriteAsync(new JObject
+                {
+                    ["type"] = "broadcast", ["method"] = "thread-stream-following-changed", ["version"] = 1,
+                    ["sourceClientId"] = _client, ["targetClientIds"] = new JArray(_owner),
+                    ["params"] = new JObject { ["hostId"] = "local", ["conversationId"] = _thread, ["following"] = true }
+                }).ConfigureAwait(false);
+            }
+            catch { lock (_stateGate) if (_snapshotRequestedUtc == requested) _snapshotRequestedUtc = null; throw; }
+        }
 
         public async Task SendAsync(string text, CancellationToken token)
         {
+            token.ThrowIfCancellationRequested();
             if (string.IsNullOrWhiteSpace(text)) return;
-            if (State == null) throw new InvalidOperationException("Wait for the shared chat to load.");
-            if (!CanSend) throw new InvalidOperationException("Wait for the shared chat to confirm the previous message, or reconnect after checking the desktop app.");
             string messageId = Guid.NewGuid().ToString();
-            _pendingMessageId = messageId;
+            lock (_stateGate)
+            {
+                if (_disposed) throw new ObjectDisposedException(nameof(CodexSharedChat));
+                if (_disconnected) throw new IOException("Codex disconnected. Reconnect to the chat.");
+                if (State == null) throw new InvalidOperationException("Wait for the shared chat to load.");
+                if (IsBusy(State) || _pendingMessageId != null) throw new InvalidOperationException("Wait for the shared chat to confirm the previous message, or reconnect after checking the desktop app.");
+                _pendingMessageId = messageId;
+            }
             // Exactly one delivery attempt. A timeout has an unknown outcome: do not
             // auto-retry and risk executing a model operation twice.
             await RequestAsync("thread-follower-start-turn", new JObject
@@ -89,6 +125,7 @@ namespace revit_mcp_plugin.UI
 
         private async Task<JObject> RequestAsync(string method, JObject parameters, int version, string target, CancellationToken token)
         {
+            token.ThrowIfCancellationRequested();
             string id = Guid.NewGuid().ToString();
             var done = new TaskCompletionSource<JObject>(TaskCreationOptions.RunContinuationsAsynchronously);
             _pending[id] = done;
@@ -163,14 +200,27 @@ namespace revit_mcp_plugin.UI
                     {
                         if ((int?)message["version"] != 11) throw new IOException("Codex chat protocol changed. Update the Revit integration.");
                         var change = message["params"]?["change"];
-                        if ((string)change?["type"] != "snapshot") continue;
+                        if ((string)change?["type"] != "snapshot")
+                        {
+                            // A desktop turn can begin while our latest snapshot is
+                            // idle. A patch is a hint to refresh promptly, not a reason
+                            // to guess its contents or wait for the idle heartbeat.
+                            lock (_stateGate) _historyChanged = true;
+                            continue;
+                        }
                         var state = change["conversationState"] as JObject;
                         if ((string)state?["id"] != _thread) throw new IOException("Codex returned a different chat.");
-                        State = state;
-                        LastSnapshotUtc = DateTime.UtcNow;
-                        if (_pendingMessageId != null)
-                            foreach (var turn in CodexChatTranscript.Turns(state))
-                                if ((string)turn["params"]?["clientUserMessageId"] == _pendingMessageId) { _pendingMessageId = null; break; }
+                        lock (_stateGate)
+                        {
+                            State = state;
+                            LastSnapshotUtc = _utcNow();
+                            _lastRefreshUtc = LastSnapshotUtc;
+                            _snapshotRequestedUtc = null;
+                            _historyChanged = false;
+                            if (_pendingMessageId != null)
+                                foreach (var turn in CodexChatTranscript.Turns(state))
+                                    if ((string)turn["params"]?["clientUserMessageId"] == _pendingMessageId) { _pendingMessageId = null; break; }
+                        }
                         Snapshot?.Invoke(state);
                         _firstSnapshot.TrySetResult(true);
                     }
@@ -178,6 +228,7 @@ namespace revit_mcp_plugin.UI
             }
             catch (Exception ex)
             {
+                lock (_stateGate) _disconnected = true;
                 foreach (var done in _pending.Values) done.TrySetException(ex);
                 _firstSnapshot.TrySetException(ex);
                 if (!_disposed) Disconnected?.Invoke(ex);
@@ -186,8 +237,11 @@ namespace revit_mcp_plugin.UI
 
         public void Dispose()
         {
-            if (_disposed) return;
-            _disposed = true;
+            lock (_stateGate)
+            {
+                if (_disposed) return;
+                _disposed = true;
+            }
             _pipe.Dispose(); // Router removes this follower; never stops the owner/app.
             _firstSnapshot.TrySetCanceled();
             foreach (var done in _pending.Values) done.TrySetException(new IOException("Chat disconnected."));

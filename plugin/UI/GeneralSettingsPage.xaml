@@ -6,7 +6,7 @@
              xmlns:local="clr-namespace:revit_mcp_plugin.UI"
              mc:Ignorable="d"
              d:DesignHeight="500" d:DesignWidth="700">
-    <Grid Background="White">
+    <Grid Background="#F8FAFC">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
@@ -15,8 +15,8 @@
 
         <!-- Header -->
         <StackPanel Grid.Row="0" Margin="0,0,0,15">
-            <TextBlock Text="General Settings" FontSize="22" FontWeight="SemiBold" Foreground="#333333"/>
-            <TextBlock Text="Configure server and plugin options"
+            <TextBlock Text="Forbindelse og logning" FontSize="24" FontWeight="SemiBold" Foreground="#0F172A"/>
+            <TextBlock Text="MCP-status ses altid i fanen VUE Studio."
                        Foreground="#666666" Margin="0,5,0,0"/>
         </StackPanel>
 
@@ -40,22 +40,22 @@
 
                 <!-- Port -->
                 <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,10,0,10" VerticalAlignment="Center">
-                    <TextBlock Text="MCP Server Port" FontSize="14" FontWeight="SemiBold" Foreground="#333333"/>
-                    <TextBlock Text="TCP port for Revit-Codex communication (requires restart)"
+                    <TextBlock Text="Lokal MCP-port" FontSize="14" FontWeight="SemiBold" Foreground="#333333"/>
+                    <TextBlock Text="Vælges automatisk fra 8080–8089 ved start. Feltet viser standarden."
                                FontSize="11" Foreground="#666666" TextWrapping="Wrap" Margin="0,3,0,0"/>
                 </StackPanel>
                 <TextBox x:Name="PortTextBox" Grid.Row="0" Grid.Column="1"
                          Margin="15,10,0,10" Padding="8,6" FontSize="14"
                          VerticalAlignment="Center" Width="120" HorizontalAlignment="Left"
-                         BorderBrush="#e0e0e0" BorderThickness="1"/>
+                         BorderBrush="#e0e0e0" BorderThickness="1" IsReadOnly="True" Background="#F1F5F9"/>
 
                 <!-- Separator -->
                 <Separator Grid.Row="1" Grid.ColumnSpan="2" Margin="0,5" Background="#e0e0e0"/>
 
                 <!-- Log Level -->
                 <StackPanel Grid.Row="2" Grid.Column="0" Margin="0,10,0,10" VerticalAlignment="Center">
-                    <TextBlock Text="Log Level" FontSize="14" FontWeight="SemiBold" Foreground="#333333"/>
-                    <TextBlock Text="Verbosity of plugin logging"
+                    <TextBlock Text="Logniveau" FontSize="14" FontWeight="SemiBold" Foreground="#333333"/>
+                    <TextBlock Text="Detaljer i pluginets tekniske log"
                                FontSize="11" Foreground="#666666" Margin="0,3,0,0"/>
                 </StackPanel>
                 <ComboBox x:Name="LogLevelComboBox" Grid.Row="2" Grid.Column="1"
@@ -73,8 +73,8 @@
 
                 <!-- Plugin Version -->
                 <StackPanel Grid.Row="4" Grid.Column="0" Margin="0,10,0,10" VerticalAlignment="Center">
-                    <TextBlock Text="Plugin Version" FontSize="14" FontWeight="SemiBold" Foreground="#333333"/>
-                    <TextBlock Text="Current assembly version"
+                    <TextBlock Text="VUE Studio-version" FontSize="14" FontWeight="SemiBold" Foreground="#333333"/>
+                    <TextBlock Text="Den indlæste pluginversion"
                                FontSize="11" Foreground="#666666" Margin="0,3,0,0"/>
                 </StackPanel>
                 <TextBlock x:Name="PluginVersionText" Grid.Row="4" Grid.Column="1"
@@ -86,8 +86,8 @@
 
                 <!-- Revit Version -->
                 <StackPanel Grid.Row="6" Grid.Column="0" Margin="0,10,0,10" VerticalAlignment="Center">
-                    <TextBlock Text="Revit Version" FontSize="14" FontWeight="SemiBold" Foreground="#333333"/>
-                    <TextBlock Text="Current Revit version year"
+                    <TextBlock Text="Revit-version" FontSize="14" FontWeight="SemiBold" Foreground="#333333"/>
+                    <TextBlock Text="Version fra installationsmappen"
                                FontSize="11" Foreground="#666666" Margin="0,3,0,0"/>
                 </StackPanel>
                 <TextBlock x:Name="RevitVersionText" Grid.Row="6" Grid.Column="1"
@@ -98,13 +98,13 @@
 
         <!-- Footer Buttons -->
         <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,15,0,0">
-            <Button x:Name="ResetDefaultsButton" Content="Reset Defaults"
+            <Button x:Name="ResetDefaultsButton" Content="Nulstil"
                     Padding="15,8" Margin="0,0,10,0" FontSize="13"
                     Background="#f5f5f5" Foreground="#333333" BorderBrush="#e0e0e0"
                     Click="ResetDefaultsButton_Click" Cursor="Hand"/>
-            <Button x:Name="SaveButton" Content="Save"
+            <Button x:Name="SaveButton" Content="Gem"
                     Padding="20,8" FontSize="13"
-                    Background="#2196F3" Foreground="White" BorderBrush="#1976D2"
+                    Background="#0F766E" Foreground="White" BorderBrush="#0F766E"
                     Click="SaveButton_Click" Cursor="Hand"/>
         </StackPanel>
     </Grid>

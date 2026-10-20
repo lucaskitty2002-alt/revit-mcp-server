@@ -100,3 +100,114 @@ using (var chat = new CodexSharedChat(name))
 }
 await serverTask;
 Console.WriteLine("PASS fragmented IPC, same-thread history/send, settings preservation, active-turn conflict.");
+await CheckRefreshPolicyAsync();
+
+static async Task CheckRefreshPolicyAsync()
+{
+    string name = "vue-refresh-test-" + Guid.NewGuid();
+    string thread = Guid.NewGuid().ToString();
+    using var server = new NamedPipeServerStream(name, PipeDirection.InOut, 1, PipeTransmissionMode.Byte, PipeOptions.Asynchronous);
+    using var writerLock = new SemaphoreSlim(1, 1);
+    long now = DateTime.UtcNow.Ticks;
+    int follows = 0, sends = 0;
+    bool suppressSnapshot = false;
+    string messageId = null;
+    var state = new JObject { ["id"] = thread, ["threadRuntimeStatus"] = new JObject { ["type"] = "idle" }, ["turns"] = new JArray() };
+    async Task Publish(JObject message)
+    {
+        await writerLock.WaitAsync();
+        try { await Write(server, message); }
+        finally { writerLock.Release(); }
+    }
+    Task PublishChange(JObject change) => Publish(new JObject {
+        ["type"] = "broadcast", ["method"] = "thread-stream-state-changed", ["version"] = 11,
+        ["sourceClientId"] = "owner", ["params"] = new JObject { ["hostId"] = "local", ["conversationId"] = thread, ["change"] = change }
+    });
+    Task PublishSnapshot() => PublishChange(new JObject { ["type"] = "snapshot", ["conversationState"] = state.DeepClone() });
+    var serve = Task.Run(async () => {
+        await server.WaitForConnectionAsync();
+        try
+        {
+            while (true)
+            {
+                var m = await Read(server);
+                switch ((string)m["method"])
+                {
+                    case "initialize":
+                    case "thread-owner-discovery":
+                        await Publish(new JObject { ["type"] = "response", ["requestId"] = m["requestId"], ["resultType"] = "success", ["handledByClientId"] = "owner", ["result"] = new JObject { ["clientId"] = "follower" } });
+                        break;
+                    case "thread-stream-following-changed":
+                        Interlocked.Increment(ref follows);
+                        if (!suppressSnapshot) await PublishSnapshot();
+                        break;
+                    case "thread-follower-start-turn":
+                        messageId = (string)m["params"]?["turnStart"]?["request"]?["clientUserMessageId"];
+                        Interlocked.Increment(ref sends);
+                        await Publish(new JObject { ["type"] = "response", ["requestId"] = m["requestId"], ["resultType"] = "success", ["result"] = new JObject() });
+                        break;
+                    default: throw new Exception("Unexpected request; refreshing must never start/resume a model thread.");
+                }
+            }
+        }
+        catch (EndOfStreamException) { }
+        catch (IOException) { }
+    });
+    using var chat = new CodexSharedChat(name, () => new DateTime(Interlocked.Read(ref now), DateTimeKind.Utc));
+    int snapshots = 0;
+    chat.Snapshot += _ => Interlocked.Increment(ref snapshots);
+    await chat.ConnectAsync(thread, CancellationToken.None);
+    Check(follows == 1, "initial history requested once");
+    await Task.WhenAll(Enumerable.Range(0, 20).Select(_ => chat.RefreshAsync()));
+    await Task.Delay(60);
+    Check(follows == 1, "idle snapshot is not repeatedly transferred");
+
+    Interlocked.Add(ref now, TimeSpan.FromSeconds(31).Ticks);
+    await Task.WhenAll(Enumerable.Range(0, 20).Select(_ => chat.RefreshAsync()));
+    await Until(() => snapshots == 2);
+    Check(follows == 2 && sends == 0, "concurrent refresh coalesces into one idle heartbeat with no inference");
+    Interlocked.Add(ref now, TimeSpan.FromSeconds(20).Ticks);
+    Check(!chat.IsSnapshotOverdue, "old idle snapshot is not a false disconnection");
+
+    suppressSnapshot = true;
+    Interlocked.Add(ref now, TimeSpan.FromSeconds(11).Ticks);
+    await chat.RefreshAsync();
+    await Until(() => follows == 3);
+    Interlocked.Add(ref now, TimeSpan.FromSeconds(16).Ticks);
+    await Task.WhenAll(Enumerable.Range(0, 20).Select(_ => chat.RefreshAsync()));
+    Check(chat.IsSnapshotOverdue && follows == 3, "unanswered refresh is detectable without flooding the desktop");
+    suppressSnapshot = false;
+    await PublishSnapshot();
+    await Until(() => snapshots == 3);
+    Check(!chat.IsSnapshotOverdue, "snapshot clears outstanding heartbeat");
+
+    await PublishChange(new JObject { ["type"] = "patch" });
+    await Task.Delay(60);
+    Interlocked.Add(ref now, TimeSpan.FromSeconds(2).Ticks);
+    await chat.RefreshAsync();
+    await Until(() => snapshots == 4);
+    Check(follows == 4, "desktop delta switches idle client to active refresh cadence");
+
+    using var cancelled = new CancellationTokenSource(); cancelled.Cancel();
+    bool cancelledSend = false;
+    try { await chat.SendAsync("cancelled", cancelled.Token); } catch (OperationCanceledException) { cancelledSend = true; }
+    Check(cancelledSend && chat.CanSend && sends == 0, "pre-cancelled send never consumes a turn or blocks the composer");
+    var first = chat.SendAsync("one", CancellationToken.None);
+    bool duplicateRefused = false;
+    try { await chat.SendAsync("two", CancellationToken.None); } catch (InvalidOperationException) { duplicateRefused = true; }
+    await first;
+    Check(duplicateRefused && sends == 1 && !chat.CanSend, "concurrent sends reserve one delivery until transcript acknowledgment");
+    state["turns"] = new JArray(new JObject { ["params"] = new JObject { ["clientUserMessageId"] = messageId } });
+    await PublishSnapshot();
+    await Until(() => chat.CanSend);
+    Check(sends == 1, "history acknowledgment never replays a model operation");
+    chat.Dispose();
+    await serve.WaitAsync(TimeSpan.FromSeconds(5));
+    Console.WriteLine("PASS adaptive/coalesced local history reads, liveness, cancellation, exactly-once delivery.");
+}
+
+static async Task Until(Func<bool> test)
+{
+    using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+    while (!test()) await Task.Delay(10, timeout.Token);
+}
