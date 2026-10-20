@@ -1,13 +1,13 @@
-# Codex-chat i Revit
+# Hele Codex i Revit
 
-1. Installér pakken med Revit lukket.
-2. Start Revit og aktivér **Revit MCP Switch**.
-3. Åbn den ønskede eksisterende samtale i Codex-appen.
-4. Åbn **Codex Chat** i Revit, vælg **Hent chats**, vælg samme samtale og tryk **Forbind chat**.
-5. Skriv i feltet nederst. Enter sender; Shift+Enter giver en ny linje.
+1. Installér med Revit lukket.
+2. Start Revit og aktivér **Revit MCP Switch** for modelværktøjer.
+3. Åbn **Codex Chat > Codex-vindue** og hold Codex-appen åben.
+4. Tryk **Hent vinduer**, vælg appvinduet og tryk **Vis Codex i Revit**.
+5. Brug appens normale brugerflade. **Tilbage til skrivebord** gendanner vinduets ramme og placering.
 
-Chatten opdateres hvert andet sekund. Tekstbeskeder og tekstsvar kommer fra den samme samtale. Godkendelser, spørgsmål, billeder og øvrige appfunktioner håndteres i Codex-appen, som skal være åben. Panelet viser op til 30 indlæste ture som almindelig tekst.
+Det er det originale appvindue, der placeres over Revit-panelet, så appen modtager mus og tastatur direkte. Der er ét originalt vindue. Menusystemer og dialoger fungerer som i appen og kan åbne som almindelige separate vinduer.
 
-Forbindelsen bruger appens interne chatdeling og er eksperimentel. Hvis Codex opdateres og protokollen ændres, kan tilføjelsen kræve opdatering. Vinduet flyttes ikke længere mellem programmerne.
+Gør panelet større, hvis Codex ikke accepterer størrelsen. **Gendan vindue** kan bruges efter en afbrudt placering, når den tidligere vært ikke længere kører. Normal lukning og skjulning frigør vinduet; et hårdt programnedbrud kan ikke garanteres at bevare et ejet vindue.
 
-Ved leveringsfejl: kontrollér først chatten i appen før du forbinder igen og prøver at sende på ny. Tilføjelsen gensender aldrig automatisk en muligvis modtaget besked.
+**Kun forhåndsvisning** viser et levende billede uden betjening. Fanen **Tekstchat** bevarer den separate, begrænsede tekstklient. Den nye metode bruger ikke SetParent og ændrer ikke Codex-appens DPI-tilstand. Kompatibiliteten med den rigtige Codex-app skal stadig afprøves manuelt.

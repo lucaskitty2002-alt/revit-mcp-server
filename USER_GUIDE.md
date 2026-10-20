@@ -1,5 +1,7 @@
 # Quick start
 
-Install the Revit 2026 package with Revit closed, then enable **Revit MCP Switch**. Keep Codex open on the conversation you want to share. In **Codex Chat**, select **Hent chats**, select the same chat and choose **Forbind chat**. Type below the shared transcript. Enter sends; Shift+Enter creates a newline.
+Close Revit and install the matching package. Start Revit and enable **Revit MCP Switch** for model tools.
 
-Text messages and text replies use the desktop-owned conversation. Handle approvals, questions and attachments in Codex. Chat updates every two seconds. The desktop/IDE protocol integration is experimental and may require updates when Codex changes.
+Open **Codex Chat > Codex-vindue > Hent vinduer**, choose the running Codex app and select **Vis Codex i Revit**. This places the original app over the panel. Use its normal interface and input. **Tilbage til skrivebord** restores it. There is one original app window; native dialogs can open separately. Enlarge the panel if the app refuses its dimensions.
+
+The window-placement integration is experimental. **Kun forhåndsvisning** is a live view-only image. The **Tekstchat** tab retains the limited shared text client.

@@ -3,12 +3,12 @@
  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
  <ScrollViewer Background="White" VerticalScrollBarVisibility="Auto">
   <StackPanel Margin="0,0,20,20">
-   <TextBlock Text="Codex · delt chat" FontSize="22" FontWeight="SemiBold"/>
-   <TextBlock Margin="0,12,0,0" TextWrapping="Wrap" Text="Åbn en eksisterende chat i Codex-appen. Vælg derefter samme chat i Revit-panelet, og tryk Forbind chat. Beskeder og svar hentes fra appens samtale. Appen skal være åben."/>
-   <TextBlock Margin="0,12,0,0" TextWrapping="Wrap" Text="Revit-panelet understøtter tekstbeskeder og tekstsvar. Modeller, værktøjer, godkendelser, spørgsmål og vedhæftninger håndteres i Codex-appen. Revit MCP Switch skal være aktiveret for modelværktøjer."/>
+   <TextBlock Text="Hele Codex i Revit" FontSize="22" FontWeight="SemiBold"/>
+   <TextBlock Margin="0,12,0,0" TextWrapping="Wrap" Text="Vælg Codex-vinduet på fanen Codex-vindue og tryk Vis Codex i Revit. Det originale appvindue placeres over panelet, så du bruger appens egen mus, tastatur, chats, godkendelser, billeder og værktøjer."/>
+   <TextBlock Margin="0,12,0,0" TextWrapping="Wrap" Text="Tilbage til skrivebord frigør appen og gendanner dens vinduesramme og placering. Der er ét originalt appvindue. Appens egne dialoger kan åbne som separate vinduer, ligesom ved normal brug."/>
    <Button Content="Åbn Codex" Click="OpenCodex_Click" HorizontalAlignment="Left" Padding="18,8" Margin="0,20,0,12"/>
    <TextBlock x:Name="Status" Foreground="#555555" TextWrapping="Wrap"/>
-   <TextBlock Margin="0,12,0,0" TextWrapping="Wrap" Text="Forbindelsen bruger Codex-appens interne chatdeling og er eksperimentel. En appopdatering kan kræve en opdatering af tilføjelsen. Der flyttes ikke længere vinduer, og skærmskalering påvirker ikke chatforbindelsen."/>
+   <TextBlock Margin="0,12,0,0" TextWrapping="Wrap" Text="Vinduesplaceringen er eksperimentel. Den nye metode bevarer vinduet som et topniveauvindue og ændrer ikke Codex-appens DPI-tilstand. Gendan vindue kan bruges efter en afbrudt placering. Kun forhåndsvisning viser et levende billede; fanen Tekstchat bevarer den separate tekstklient."/>
   </StackPanel>
  </ScrollViewer>
 </Page>

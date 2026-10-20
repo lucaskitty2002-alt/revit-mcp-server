@@ -1,37 +1,37 @@
-# Codex shared chat in Revit
+# Codex desktop app in Revit
 
-Version 2.5 replaces the failed native-window panel with a **text composer connected to an existing Codex desktop conversation**. The desktop app remains the conversation owner and executes its configured tools, including `revit-mcp`. This is an experimental integration with the app's internal desktop/IDE coordination protocol, verified against desktop 26.1013; it is not a supported public embedding API or full copy of the app UI.
+Version 2.6 places the **original Codex desktop window over the Revit panel**, preserving the app's own interface, mouse/keyboard input, chats, approvals, attachments and tools. The user chose one original app window that can move between Revit and the desktop. This is an experimental Windows window-placement integration, not two simultaneously interactive copies.
 
 ## Use
 
-1. Install and sign in to Codex. Keep the desktop app open.
-2. Close Revit and install the matching package using `INSTALLA.bat`.
-3. Start Revit and enable **Revit MCP Switch** for model tools.
-4. Open the desired existing chat in Codex.
-5. In **Codex Chat**, choose **Hent chats**, select that same chat, and choose **Forbind chat**.
-6. Type in the Revit composer. Enter sends; Shift+Enter inserts a newline. Messages and text answers come from the same conversation. Snapshots refresh every two seconds.
+1. Install with Revit closed. Start Revit and enable **Revit MCP Switch** for model tools.
+2. Open **Codex Chat > Codex-vindue**. Keep Codex open and signed in.
+3. Choose **Hent vinduer**, select the Codex app window and choose **Vis Codex i Revit**.
+4. Use Codex normally in the panel area. Choose **Tilbage til skrivebord** to restore its frame and original placement.
 
-Approvals, questions, attachments, model selection and other desktop features remain in the Codex app. The panel shows the last 30 loaded conversation turns as selectable plain text. It disables sends during an active turn and until a previous message is acknowledged in shared history. A delivery timeout never automatically retries a model operation: check the app before reconnecting and retrying. Hiding the panel disconnects the follower; reconnect when reopening it.
+The original app receives input directly. Its native menus and dialogs can open as normal separate windows. Make the panel larger if Codex refuses its size. Use **Gendan vindue** after an interrupted placement if the previous host is no longer running. Normal panel close/hide/shutdown releases the app first. A hard process crash is not guaranteed to preserve an owned window.
 
-## Architecture and limitations
+**Kun forhåndsvisning** uses local DWM thumbnails to show a live, view-only image. An early mouse/keyboard-message relay worked for text but failed a native-button test and was removed. Do not describe the preview as an interactive screen-sharing session. **Tekstchat** retains the version 2.5 same-thread text interface, including its limited feature set.
 
-`CodexSharedChat` connects to the local `codex-ipc` named pipe, discovers the owner of the selected persistent thread, follows snapshots and forwards `thread-follower-start-turn` requests. It does not acquire thread ownership, resume the conversation in another server, change permissions/model/tools, read credentials, or write session files. The short-lived CLI app-server used for the chat list only calls `thread/list`.
+## Window behavior
 
-The internal protocol can change when Codex updates. Unknown snapshot versions fail closed with an update message. The desktop must already own the selected local chat. Revit supports text sending and text replies here; full app feature parity and complete approval UI are not implemented. See [validation status](docs/shared-chat-status.md).
+`DesktopOverlayLease` changes the top-level window's owner (`GWLP_HWNDPARENT`), frame and screen bounds. It never uses cross-process `SetParent` or converts Codex into a child window. Different DPI-awareness modes are preserved. The original owner, styles and placement are saved before mutation, along with PID/start-time identity, in a local recovery file. A live modal's disabled-owner state is preserved when releasing. Source processes are never terminated by the plugin.
 
-The Revit MCP server exposes 138 model tools. This project builds on [LuDattilo/revit-mcp-server](https://github.com/LuDattilo/revit-mcp-server); its license and notices are preserved.
+This project exposes 138 Revit model tools and builds on [LuDattilo/revit-mcp-server](https://github.com/LuDattilo/revit-mcp-server), preserving its license and notices.
 
 ## Build and verify
 
 ```powershell
 dotnet build plugin/RevitMCPPlugin.csproj -c "Release R26"
+dotnet run --project tests/window-mirror/WindowMirror.Tests.csproj
 dotnet run --project tests/shared-chat/SharedChat.Tests.csproj
-dotnet run --project tests/codex-panel/CodexPanel.Tests.csproj
 ./tests/codex-panel/Test-Installer.ps1
 ```
 
-Optional read-only live probe: set `CODEX_THREAD_ID` to a local conversation currently open in the desktop, then run `dotnet run --project tests/shared-chat/SharedChat.Tests.csproj -- --probe`. It verifies owner discovery and a transcript snapshot without sending a message or resuming the thread. It never stores chat content.
+The window test creates its own source app and host. It verifies composed preview pixels, different DPI modes, original-window placement, top-level identity, unchanged DPI, normal owned-modal behavior and restoration. It does not operate user applications or prove compatibility with the actual Codex app. See [validation status](docs/shared-chat-status.md).
 
-After installing, send a harmless text message from Revit and verify the same message and reply in the app; send from the app and verify the Revit transcript; check an approval in the desktop; test busy-state refusal, reconnect and app shutdown. Mock tests and the read-only live probe do not establish these UI acceptance checks.
+Optional manual preview without installing: run `tests/window-mirror/bin/Debug/net8.0-windows/WindowMirror.Tests.exe --preview <absolute path to RevitMCPPlugin.dll>` and use the visible controls yourself. The helper does not automatically select or operate Codex.
 
-A deployment package also needs the matching command set, MCP server, Node runtime and dependency DLLs. Keep models, credentials, databases, local settings and backups out of Git.
+A complete installer package also needs the command set, MCP server, Node runtime and dependency DLLs. Keep models, credentials, databases, local settings and backups out of Git.
+
+Windows references: [top-level window owner](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setwindowlongptrw), [DWM thumbnails](https://learn.microsoft.com/en-us/windows/win32/api/dwmapi/nf-dwmapi-dwmregisterthumbnail).

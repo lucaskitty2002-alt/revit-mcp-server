@@ -146,7 +146,7 @@ namespace revit_mcp_plugin.UI
         }
         private void Disconnect(string reason) { ReleaseWindow(); StatusText.Text = reason; }
         // Retained entry point used by the Revit toggle/shutdown commands.
-        public void ReleaseWindow() { _chat?.Dispose(); _chat = null; if (SendButton != null) SendButton.IsEnabled = false; }
+        public void ReleaseWindow() { MirrorPanel?.Stop(); _chat?.Dispose(); _chat = null; if (SendButton != null) SendButton.IsEnabled = false; }
         public void Shutdown() { _timer.Stop(); ReleaseWindow(); }
         public void LogCommand(string commandName, bool success, string message, double durationMs) { }
     }

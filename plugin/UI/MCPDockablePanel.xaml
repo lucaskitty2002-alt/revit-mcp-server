@@ -1,7 +1,10 @@
 <Page x:Class="revit_mcp_plugin.UI.MCPDockablePanel"
  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
- xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Background="#FAFAFA"
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:local="clr-namespace:revit_mcp_plugin.UI" Background="#FAFAFA"
  Loaded="Page_Loaded" Unloaded="Page_Unloaded" IsVisibleChanged="Page_IsVisibleChanged">
+ <TabControl>
+  <TabItem Header="Codex-vindue"><local:CodexMirrorPanel x:Name="MirrorPanel"/></TabItem>
+  <TabItem Header="Tekstchat">
  <Grid Margin="12">
   <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
   <StackPanel>
@@ -28,4 +31,6 @@
    <TextBlock x:Name="RevitStatus" FontSize="11" Foreground="#666" TextWrapping="Wrap" Margin="0,4,0,0"/>
   </StackPanel>
  </Grid>
+ </TabItem>
+ </TabControl>
 </Page>
