@@ -1,6 +1,6 @@
 # Codex desktop app in Revit
 
-Version 2.6.2 positions the **original Codex desktop window over the Revit panel** while preserving its native owner, frame and input handling. The user chose one original app window that can move between Revit and the desktop. This is an experimental Windows window-placement integration; compatibility with the actual Codex app still requires the user's trial.
+Version 2.6.3 positions the **original Codex desktop window over the Revit panel** while preserving its native owner, frame and input handling. The user chose one original app window that can move between Revit and the desktop. This is an experimental Windows window-placement integration; compatibility with the actual Codex app still requires the user's trial.
 
 ## Use
 
@@ -8,6 +8,8 @@ Version 2.6.2 positions the **original Codex desktop window over the Revit panel
 2. Open **Codex Chat > Codex-vindue**. Keep Codex open and signed in.
 3. Select the Codex app window and choose **Vis i Revit**. Use the refresh button if the window is missing.
 4. Use Codex normally in the panel area. Choose **Frigør** to restore its frame and original placement.
+
+During placement the panel switches to a compact toolbar, giving the app more vertical space. Status details are available in the toolbar label's tooltip; a paused window is labelled **På pause**. Version 2.6.3 converts WPF screen points through the exact host HWND into physical pixels before native placement. A DPI-changing move may reapply the size once; genuine app minimum sizes are still respected.
 
 The original app receives input directly. Its native menus and dialogs can open as normal separate windows. **Vis igen** restores a manually minimized/maximized source and brings it back to the panel. A minimized/hidden host pauses placement and temporarily hides a normal source without minimizing it. Use **⋯ > Gendan tidligere placering** after an interrupted placement if the previous host is no longer running. Normal panel close/hide/shutdown releases the app first.
 
@@ -26,6 +28,7 @@ This project exposes 138 Revit model tools and builds on [LuDattilo/revit-mcp-se
 ```powershell
 dotnet build plugin/RevitMCPPlugin.csproj -c "Release R26"
 dotnet run --project tests/window-mirror/WindowMirror.Tests.csproj
+dotnet run --project tests/window-mirror/WindowMirror.Tests.csproj -- --dpi-host-probe
 dotnet run --project tests/shared-chat/SharedChat.Tests.csproj
 ./tests/codex-panel/Test-Installer.ps1
 ```

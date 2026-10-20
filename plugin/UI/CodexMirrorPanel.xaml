@@ -25,33 +25,20 @@
    </ControlTemplate></Setter.Value></Setter>
   </Style>
  </UserControl.Resources>
- <Grid Margin="16">
+ <Grid x:Name="PanelGrid" Margin="16">
   <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-  <Grid Margin="0,0,0,16">
+  <Grid x:Name="WelcomeHeader" Margin="0,0,0,16">
    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
    <StackPanel>
     <TextBlock Text="Codex i Revit" FontSize="22" FontWeight="SemiBold"/>
     <TextBlock Text="Din app. Dine chats. Alle værktøjerne." FontSize="12" Foreground="#667085" Margin="0,4,0,0"/>
    </StackPanel>
-   <Button Grid.Column="1" x:Name="MoreButton" Content="⋯" FontSize="23" Width="38" Padding="0"
-    Style="{StaticResource ActionButton}" Click="More_Click" ToolTip="Flere muligheder" AutomationProperties.Name="Flere muligheder">
-    <Button.ContextMenu>
-     <ContextMenu>
-      <MenuItem Header="Åbn Codex-appen" Click="Open_Click"/>
-      <MenuItem Header="Opdater vindueslisten" Click="Refresh_Click"/>
-      <Separator/>
-      <MenuItem Header="Levende forhåndsvisning" Click="Preview_Click"/>
-      <MenuItem Header="Gendan tidligere placering" Click="Recover_Click"/>
-      <Separator/>
-      <MenuItem Header="Vis teknisk info" Click="Diagnostics_Click"/>
-     </ContextMenu>
-    </Button.ContextMenu>
-   </Button>
   </Grid>
-  <Border Grid.Row="1" CornerRadius="12" Background="White" BorderBrush="#E4E7EC" BorderThickness="1" Padding="12" Margin="0,0,0,12">
+  <Border x:Name="ConnectionCard" Grid.Row="1" CornerRadius="12" Background="White" BorderBrush="#E4E7EC" BorderThickness="1" Padding="12" Margin="0,0,0,12">
    <Grid>
     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
     <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+    <TextBlock x:Name="CompactLabel" Text="Codex" Visibility="Collapsed" VerticalAlignment="Center" FontWeight="SemiBold" FontSize="13" TextTrimming="CharacterEllipsis" Margin="0,0,8,0"/>
     <StackPanel x:Name="PickerGroup" Margin="0,0,10,0">
      <TextBlock Text="APPVINDUE" FontSize="10" FontWeight="SemiBold" Foreground="#667085" Margin="0,0,0,5"/>
      <ComboBox x:Name="WindowPicker" MinHeight="32" BorderBrush="#D0D5DD" Background="White" FontSize="13"
@@ -66,6 +53,18 @@
      Style="{StaticResource ActionButton}" Background="#2563EB" Foreground="White" BorderBrush="#2563EB" Click="Start_Click" IsEnabled="False"/>
     <Button x:Name="ReleaseButton" Content="Frigør" VerticalAlignment="Bottom"
      Style="{StaticResource ActionButton}" Margin="8,0,0,0" Click="Stop_Click" Visibility="Collapsed" ToolTip="Send Codex tilbage til skrivebordet"/>
+    <Button x:Name="MoreButton" Content="⋯" FontSize="23" Width="38" Padding="0" Margin="8,0,0,0"
+     Style="{StaticResource ActionButton}" Click="More_Click" ToolTip="Flere muligheder" AutomationProperties.Name="Flere muligheder">
+     <Button.ContextMenu><ContextMenu>
+      <MenuItem Header="Åbn Codex-appen" Click="Open_Click"/>
+      <MenuItem Header="Opdater vindueslisten" Click="Refresh_Click"/>
+      <Separator/>
+      <MenuItem Header="Levende forhåndsvisning" Click="Preview_Click"/>
+      <MenuItem Header="Gendan tidligere placering" Click="Recover_Click"/>
+      <Separator/>
+      <MenuItem Header="Vis teknisk info" Click="Diagnostics_Click"/>
+     </ContextMenu></Button.ContextMenu>
+    </Button>
     </WrapPanel>
    </Grid>
   </Border>
@@ -98,6 +97,6 @@
     </StackPanel>
    </Grid>
   </Border>
-  <TextBlock Grid.Row="4" Text="Frigør sender vinduet tilbage til skrivebordet." FontSize="11" Foreground="#667085" TextAlignment="Center" Margin="0,10,0,0"/>
+  <TextBlock x:Name="Footer" Grid.Row="4" Text="Frigør sender vinduet tilbage til skrivebordet." FontSize="11" Foreground="#667085" TextAlignment="Center" Margin="0,10,0,0"/>
  </Grid>
 </UserControl>

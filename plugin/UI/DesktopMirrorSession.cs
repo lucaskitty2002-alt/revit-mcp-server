@@ -148,7 +148,9 @@ namespace revit_mcp_plugin.UI
             }
 public sealed class DpiScope : IDisposable
             {
-                private readonly IntPtr _previous = SetThreadDpiAwarenessContext(new IntPtr(-4));
+                private readonly IntPtr _previous;
+                public DpiScope() : this(new IntPtr(-4)) { }
+                public DpiScope(IntPtr context) { _previous = SetThreadDpiAwarenessContext(context); }
                 public void Dispose() { if (_previous != IntPtr.Zero) SetThreadDpiAwarenessContext(_previous); }
             }
             public delegate bool EnumProc(IntPtr window, IntPtr param);

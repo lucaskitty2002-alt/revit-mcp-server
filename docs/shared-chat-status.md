@@ -64,3 +64,15 @@ Host minimize/hide pauses and temporarily hides a normal source without minimizi
 Controlled checks pass for native owner/frame preservation, host minimize/restore with actual overlay pixels, independent source minimize/maximize pause with retained lease, original band restoration and explicit resume. Existing mixed-DPI, normal/max/min attach, modal lifetime and exact saved-state restoration checks also pass. Revit 2026 builds with zero warnings/errors; shared-chat and installer regressions pass.
 
 Version 2.6.2.0 was installed for Revit 2026 on 2026-10-20 with Revit closed. The installer backed up version 2.6.1, replaced the add-in and registered revit-mcp. Installed DLL SHA-256 A26AF0E6B5B201B660496EB5B7F0BF457A6C80CDE0BE16B3E9975F08C5D275FA matches the package from source commit e1531f7. The canonical add-in manifest was verified. Actual Codex rendering and input remain pending user acceptance.
+
+## Version 2.6.2 actual trial: size rejection
+
+User screenshots show 967 × 645 requested versus 967 × 900 actual, then 2146 × 717 versus 1431 × 600. The latter width ratio is exactly 1.5; native metadata identifies a SystemAware Revit host and a PerMonitorAware Codex window. The prior screen calculation mixed WPF screen points with PMv2 native placement. These results are not a successful actual-app trial.
+
+## Version 2.6.3 physical coordinates and compact toolbar
+
+DesktopScreenGeometry calculates WPF screen points in the exact HwndSource's own awareness context, then converts both corners using LogicalToPhysicalPointForPerMonitorDPI. It checks the result against the HWND's physical client rectangle. Placement and preview share this conversion. A resize is reapplied once only if the source's DPI changes during the move, allowing WM_DPICHANGED size adjustment to settle without repeatedly fighting app minimum size.
+
+While attaching or attached, decorative header/status/footer and the source picker collapse into one toolbar. At 669 × 780 DIP the app area increases from 484.93 to 686 DIP high, reclaiming about 302 physical pixels at 150% scaling. The native app's minimum size remains unchanged.
+
+The Revit 2026 build, existing controlled-window tests and shared-chat regressions pass. The SystemAware WPF probe verifies the new helper against native physical client bounds. Only one 144-DPI display is currently available to the test process; the secondary-monitor transition is explicitly skipped, not counted as a passed mixed-monitor trial. Actual Codex/Revit rendering and input remain unverified for this candidate.

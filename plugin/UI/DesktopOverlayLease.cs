@@ -87,8 +87,17 @@ namespace revit_mcp_plugin.UI
             {
                 if (!GetWindowRect(source, out var current) || !Fits(current, bounds))
                 {
+                    uint previousDpi = GetDpiForWindow(source);
                     Check(N.SetWindowPos(source, IntPtr.Zero, bounds.Left, bounds.Top, bounds.Width, bounds.Height, 0x0004 | 0x0010 | 0x0200));
                     Check(GetWindowRect(source, out current));
+                    // Moving between monitors can make the app apply WM_DPICHANGED's
+                    // suggested size. Reapply once at the new DPI, never loop on a
+                    // genuine minimum-size constraint.
+                    if (!Fits(current, bounds) && previousDpi != GetDpiForWindow(source))
+                    {
+                        Check(N.SetWindowPos(source, IntPtr.Zero, bounds.Left, bounds.Top, bounds.Width, bounds.Height, 0x0004 | 0x0010 | 0x0200));
+                        Check(GetWindowRect(source, out current));
+                    }
                     if (!Fits(current, bounds))
                     {
                         CaptureDiagnostic("size_rejected", "Requested and actual window bounds differ.");
@@ -248,6 +257,7 @@ namespace revit_mcp_plugin.UI
             var gui = new GuiThreadInfo { Size = Marshal.SizeOf(typeof(GuiThreadInfo)) };
             bool available = thread != 0 && GetGUIThreadInfo(thread, ref gui);
             return new { hwnd = window.ToInt64(), pid, thread, className = className.ToString(),
+                dpi = GetDpiForWindow(window),
                 style = N.GetWindowLongPtr(window, -16).ToInt64().ToString("X"), extendedStyle = N.GetWindowLongPtr(window, -20).ToInt64().ToString("X"),
                 visible = N.IsWindowVisible(window), minimized = DesktopMirrorSession.Native.IsIconic(window), cloaked = IsCloaked(window),
                 guiAvailable = available, active = gui.Active.ToInt64(), focus = gui.Focus.ToInt64() };
@@ -268,6 +278,7 @@ namespace revit_mcp_plugin.UI
         { public int Size, Flags; public IntPtr Active, Focus, Capture, MenuOwner, MoveSize, Caret; public DesktopMirrorSession.Native.Rect CaretRect; }
         [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern int GetClassName(IntPtr window, System.Text.StringBuilder text, int capacity);
         [DllImport("user32.dll")] private static extern bool GetGUIThreadInfo(uint thread, ref GuiThreadInfo info);
+        [DllImport("user32.dll")] private static extern uint GetDpiForWindow(IntPtr window);
         [DllImport("dwmapi.dll")] private static extern int DwmGetWindowAttribute(IntPtr window, int attribute, out int value, int size);
         [DllImport("user32.dll")] private static extern bool SetForegroundWindow(IntPtr window);
         [DllImport("user32.dll")] private static extern bool GetWindowRect(IntPtr window, out DesktopMirrorSession.Native.Rect bounds);

@@ -21,7 +21,13 @@ internal static class Program
     {
         if (args.FirstOrDefault() == "--fixture") { Fixture(args[1]); return; }
         if (args.FirstOrDefault() == "--preview") { Preview(args[1]); return; }
+        if (args.FirstOrDefault() == "--dpi-host-probe") { ProbeSystemAwareHost(); return; }
         Native.SetProcessDpiAwarenessContext(new IntPtr(-4)); Native.SetThreadDpiAwarenessContext(new IntPtr(-4));
+        if(args.FirstOrDefault()=="--monitors")
+        {
+            foreach(var monitor in Monitors())Console.WriteLine("Monitor "+monitor.Handle+" DPI="+monitor.Dpi+" work="+BoundsText(monitor.Work));
+            return;
+        }
         string root = Path.Combine(Path.GetTempPath(), "revit-mirror-tests-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(root);
         var child = Process.Start(new ProcessStartInfo(Path.ChangeExtension(Assembly.GetExecutingAssembly().Location, ".exe"), "--fixture \"" + root + "\"") { UseShellExecute = false, CreateNoWindow = true });
@@ -116,6 +122,42 @@ internal static class Program
         try { app.Run(window); }
         finally { if(!child.HasExited) child.Kill(); child.Dispose(); }
         if(failure!=null) throw failure;
+    }
+    static void ProbeSystemAwareHost()
+    {
+        Native.SetProcessDpiAwarenessContext(new IntPtr(-2));Native.SetThreadDpiAwarenessContext(new IntPtr(-2));
+        var monitors=Monitors();var destination=monitors.OrderByDescending(m=>m.Work.Left).First();
+        if(monitors.Count<2)Console.WriteLine("SKIP secondary-monitor transition: only one display is currently available.");
+        var surface=new System.Windows.Controls.Border {Background=System.Windows.Media.Brushes.Teal};
+        var app=new System.Windows.Application();
+        var window=new Window {Title="Controlled SystemAware DPI probe",Width=900,Height=700,Topmost=true,ShowActivated=false,Content=surface};
+        window.ContentRendered+=async(s,e)=>
+        {
+            try
+            {
+                IntPtr hwnd=new WindowInteropHelper(window).Handle;
+                using(new N.DpiScope())DesktopWindowLease.Native.SetWindowPos(hwnd,IntPtr.Zero,destination.Work.Left+60,destination.Work.Top+60,1200,850,0x0004|0x0010);
+                await Task.Delay(350);
+                var physical=DesktopScreenGeometry.GetBounds(surface);
+                var first=surface.PointToScreen(new System.Windows.Point());var last=surface.PointToScreen(new System.Windows.Point(surface.ActualWidth,surface.ActualHeight));
+                var logicalFirst=new N.Point {X=(int)first.X,Y=(int)first.Y};var logicalLast=new N.Point {X=(int)last.X,Y=(int)last.Y};
+                Native.LogicalToPhysicalPointForPerMonitorDPI(hwnd,ref logicalFirst);Native.LogicalToPhysicalPointForPerMonitorDPI(hwnd,ref logicalLast);
+                Console.WriteLine("SystemAware hostDpi="+Native.GetDpiForWindow(hwnd)+" monitorDpi="+destination.Dpi+" actualDIP="+surface.ActualWidth+"x"+surface.ActualHeight);
+                Console.WriteLine("default PointToScreen="+first+" -> "+last);
+                Console.WriteLine("converted default="+logicalFirst.X+","+logicalFirst.Y+" -> "+logicalLast.X+","+logicalLast.Y);
+                using(new N.DpiScope())
+                {
+                    var pmFirst=surface.PointToScreen(new System.Windows.Point());var pmLast=surface.PointToScreen(new System.Windows.Point(surface.ActualWidth,surface.ActualHeight));
+                    Native.GetWindowRect(hwnd,out var outer);N.GetClientRect(hwnd,out var client);
+                    var nativeFirst=new N.Point();var nativeLast=new N.Point {X=client.Width,Y=client.Height};N.ClientToScreen(hwnd,ref nativeFirst);N.ClientToScreen(hwnd,ref nativeLast);
+                    Check(SameBounds(physical,new N.Rect {Left=nativeFirst.X,Top=nativeFirst.Y,Right=nativeLast.X,Bottom=nativeLast.Y}),"SystemAware WPF surface converts to exact physical native client bounds");
+                    Console.WriteLine("PMv2 PointToScreen="+pmFirst+" -> "+pmLast);
+                    Console.WriteLine("PMv2 native outer="+BoundsText(outer)+" client="+BoundsText(client)+" screenclient="+nativeFirst.X+","+nativeFirst.Y+" -> "+nativeLast.X+","+nativeLast.Y);
+                }
+            }
+            finally {window.Close();}
+        };
+        app.Run(window);
     }
     static async Task VerifyPauseLifecycle(DesktopOverlayLease overlay,IntPtr source,Window hostWindow,N.Rect bounds,string root,bool originalTopmost)
     {
@@ -218,6 +260,18 @@ internal static class Program
         if(failures.Count>0)throw new AggregateException("Window-state overlay regressions failed.",failures);
     }
     static bool SameBounds(N.Rect a,N.Rect b)=>Math.Abs(a.Left-b.Left)<3&&Math.Abs(a.Top-b.Top)<3&&Math.Abs(a.Right-b.Right)<3&&Math.Abs(a.Bottom-b.Bottom)<3;
+    sealed class MonitorData {public IntPtr Handle;public N.Rect Work;public uint Dpi;}
+    static List<MonitorData> Monitors()
+    {
+        var monitors=new List<MonitorData>();
+        Native.EnumDisplayMonitors(IntPtr.Zero,IntPtr.Zero,(IntPtr handle,IntPtr dc,ref N.Rect rectangle,IntPtr data)=>
+        {
+            var info=new Native.MonitorInfo {Size=Marshal.SizeOf(typeof(Native.MonitorInfo))};
+            if(Native.GetMonitorInfo(handle,ref info)&&Native.GetDpiForMonitor(handle,0,out uint x,out _)==0)monitors.Add(new MonitorData {Handle=handle,Work=info.Work,Dpi=x});
+            return true;
+        },IntPtr.Zero);
+        return monitors;
+    }
     static string BoundsText(N.Rect r)=>r.Left+","+r.Top+","+r.Width+"x"+r.Height;
     static void VerifyOverlayPixels(IntPtr source,N.Rect bounds,string image)
     {
@@ -278,6 +332,13 @@ internal static class Program
     }
     static class Native
     {
+        [StructLayout(LayoutKind.Sequential)]public struct MonitorInfo {public int Size;public N.Rect Monitor,Work;public uint Flags;}
+        public delegate bool MonitorCallback(IntPtr monitor,IntPtr dc,ref N.Rect bounds,IntPtr data);
+        [DllImport("user32.dll")]public static extern bool EnumDisplayMonitors(IntPtr dc,IntPtr clip,MonitorCallback callback,IntPtr data);
+        [DllImport("user32.dll")]public static extern bool GetMonitorInfo(IntPtr monitor,ref MonitorInfo info);
+        [DllImport("shcore.dll")]public static extern int GetDpiForMonitor(IntPtr monitor,int kind,out uint x,out uint y);
+        [DllImport("user32.dll")]public static extern uint GetDpiForWindow(IntPtr window);
+        [DllImport("user32.dll")]public static extern bool LogicalToPhysicalPointForPerMonitorDPI(IntPtr window,ref N.Point point);
         [DllImport("user32.dll")] public static extern bool SetProcessDpiAwarenessContext(IntPtr value);
         [DllImport("user32.dll")] public static extern IntPtr SetThreadDpiAwarenessContext(IntPtr value);
         [DllImport("user32.dll")] public static extern IntPtr GetParent(IntPtr hwnd);

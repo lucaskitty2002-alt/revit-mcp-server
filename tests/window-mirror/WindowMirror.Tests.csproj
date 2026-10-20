@@ -6,5 +6,6 @@
   <Compile Include="../../plugin/UI/CodexMirrorSurface.cs" Link="CodexMirrorSurface.cs"/>
   <Compile Include="../../plugin/UI/DesktopWindowLease.cs" Link="DesktopWindowLease.cs"/>
   <Compile Include="../../plugin/UI/DesktopOverlayLease.cs" Link="DesktopOverlayLease.cs"/>
+  <Compile Include="../../plugin/UI/DesktopScreenGeometry.cs" Link="DesktopScreenGeometry.cs"/>
  </ItemGroup>
 </Project>

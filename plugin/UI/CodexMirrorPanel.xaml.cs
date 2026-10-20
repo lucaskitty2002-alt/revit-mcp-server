@@ -81,8 +81,24 @@ namespace revit_mcp_plugin.UI
         private void WindowPicker_SelectionChanged(object sender, SelectionChangedEventArgs e) => UpdateControls();
         private void Panel_SizeChanged(object sender, SizeChangedEventArgs e)
         {
+            UpdateLayoutMode();
+        }
+        private void UpdateLayoutMode()
+        {
             if (ActionGroup == null) return;
-            bool narrow = ActualWidth < 520;
+            bool compact = _attaching || _overlay.HasLease;
+            bool narrow = !compact && ActualWidth < 520;
+            WelcomeHeader.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
+            Footer.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
+            PickerGroup.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
+            RefreshButton.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
+            CompactLabel.Visibility = compact ? Visibility.Visible : Visibility.Collapsed;
+            CompactLabel.Text = _overlay.IsPaused ? "På pause" : "Codex";
+            CompactLabel.ToolTip = StatusTitle.Text + "\n" + StatusText.Text;
+            StatusBorder.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
+            PanelGrid.Margin = compact ? new Thickness(8) : new Thickness(16);
+            ConnectionCard.Padding = compact ? new Thickness(8) : new Thickness(12);
+            ConnectionCard.Margin = new Thickness(0, 0, 0, compact ? 6 : 12);
             Grid.SetColumnSpan(PickerGroup, narrow ? 2 : 1);
             Grid.SetRow(ActionGroup, narrow ? 1 : 0);
             Grid.SetColumn(ActionGroup, narrow ? 0 : 1);
@@ -102,8 +118,9 @@ namespace revit_mcp_plugin.UI
             WindowPicker.IsEnabled = !_attaching && !attached;
             ReleaseButton.Visibility = attached || Surface.IsSharing ? Visibility.Visible : Visibility.Collapsed;
             ReleaseButton.IsEnabled = !_attaching;
-            EmptyState.Visibility = attached || Surface.IsSharing ? Visibility.Collapsed : Visibility.Visible;
+            EmptyState.Visibility = _attaching || attached || Surface.IsSharing ? Visibility.Collapsed : Visibility.Visible;
             OpenButton.Visibility = WindowPicker.Items.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+            UpdateLayoutMode();
         }
         private void SetStatus(string title, string detail, string kind)
         {
@@ -115,10 +132,7 @@ namespace revit_mcp_plugin.UI
         private static Brush Brush(string color) => new SolidColorBrush((Color)ColorConverter.ConvertFromString(color));
         private DesktopMirrorSession.Native.Rect ScreenBounds()
         {
-            if (Surface.ActualWidth < 1 || Surface.ActualHeight < 1) throw new InvalidOperationException("Panelet skal være åbent, før Codex kan vises.");
-            var a = Surface.PointToScreen(new Point());
-            var b = Surface.PointToScreen(new Point(Surface.ActualWidth, Surface.ActualHeight));
-            return new DesktopMirrorSession.Native.Rect { Left = (int)Math.Round(a.X), Top = (int)Math.Round(a.Y), Right = (int)Math.Round(b.X), Bottom = (int)Math.Round(b.Y) };
+            return DesktopScreenGeometry.GetBounds(Surface);
         }
         private void Refresh_Click(object sender, RoutedEventArgs e) => Refresh();
         private void Open_Click(object sender, RoutedEventArgs e)

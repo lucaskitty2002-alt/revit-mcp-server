@@ -39,9 +39,9 @@ namespace revit_mcp_plugin.UI
             if (_session == null || ActualWidth < 2 || ActualHeight < 2) return;
             try
             {
-                var a = PointToScreen(new Point()); var b = PointToScreen(new Point(ActualWidth,ActualHeight));
-                var top = new DesktopMirrorSession.Native.Point { X = (int)a.X, Y = (int)a.Y };
-                var bottom = new DesktopMirrorSession.Native.Point { X = (int)b.X, Y = (int)b.Y };
+                var bounds = DesktopScreenGeometry.GetBounds(this);
+                var top = new DesktopMirrorSession.Native.Point { X = bounds.Left, Y = bounds.Top };
+                var bottom = new DesktopMirrorSession.Native.Point { X = bounds.Right, Y = bounds.Bottom };
                 using(new DesktopMirrorSession.Native.DpiScope())
                 {
                     var root=DesktopMirrorSession.Native.GetAncestor(_host.Handle,2);
