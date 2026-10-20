@@ -38,9 +38,9 @@ A complete installer package also needs the command set, MCP server, Node runtim
 
 Windows references: [top-level window owner](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setwindowlongptrw), [DWM thumbnails](https://learn.microsoft.com/en-us/windows/win32/api/dwmapi/nf-dwmapi-dwmregisterthumbnail).
 
-## Version 2.6.1 fix and interface
+## Interface and previous 2.6.1 placement fix
 
-Maximized and minimized source windows are restored before placement. The attached style no longer reapplies the saved maximize/minimize bits; desktop return still restores the original state. Regression tests failed with the old implementation and now pass for normal, maximized and minimized fixtures, including actual composed overlay pixels and native hit testing. Placement checks all four physical screen bounds and confirms the current owner. A green status requires a visible source or owned modal; an existing window handle alone is not treated as success.
+Version 2.6.1 fixed saved maximize/minimize bits being reapplied after restoration. Controlled normal, maximized and minimized fixtures passed pixel and hit-test checks, but the actual Codex trial still failed. Version 2.6.2 keeps those restoration regressions and checks all four physical bounds while preserving the native owner/frame. It no longer claims app readiness from window geometry and hit testing.
 
 The refreshed interface has one primary action, a readable Codex window label, a visible status card and a compact extra-actions menu. Controls adapt to narrow panels. Automatic raising pauses while the panel's own menus are open. A local window-diagnostics.json stores the last operation's window metadata and error, without chat content or credentials.
 
