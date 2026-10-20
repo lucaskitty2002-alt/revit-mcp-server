@@ -1,52 +1,72 @@
-# Codex desktop app in Revit
+# VUE Studio for Revit
 
-Version 2.6.3 positions the **original Codex desktop window over the Revit panel** while preserving its native owner, frame and input handling. The user chose one original app window that can move between Revit and the desktop. This is an experimental Windows window-placement integration; compatibility with the actual Codex app still requires the user's trial.
+VUE Studio 2.7 is Lucas and Rasmus' Revit/MCP workspace for their VUE project. It adds a dedicated **VUE Studio** ribbon tab, a dockable panel, visible connection state and local starters for the group's five workflow books. Revit plugins load through Autodesk's add-in API; this package preserves the existing add-in ID and installation path so an upgrade does not create a second plugin.
 
-## Use
+![VUE Studio panel](docs/images/vue-studio-panel.png)
 
-1. Install with Revit closed. Start Revit and enable **Revit MCP Switch** for model tools.
-2. Open **Codex Chat > Codex-vindue**. Keep Codex open and signed in.
-3. Select the Codex app window and choose **Vis i Revit**. Use the refresh button if the window is missing.
-4. Use Codex normally in the panel area. Choose **Frigør** to restore its frame and original placement.
+## Start
 
-During placement the panel switches to a compact toolbar, giving the app more vertical space. Status details are available in the toolbar label's tooltip; a paused window is labelled **På pause**. Version 2.6.3 converts WPF screen points through the exact host HWND into physical pixels before native placement. A DPI-changing move may reapply the size once; genuine app minimum sizes are still respected.
+1. Install the Revit 2026 candidate with Revit closed (see below).
+2. Open a model and select **VUE Studio > MCP slukket** to turn the connection on. The label and icon change to **MCP tændt** only when the listener is running. **MCP fejl** shows a failed start or listener failure.
+3. Choose **Åbn Studio**. Keep Codex open and signed in.
+4. Under **Codex**, choose the original app window and select **Vis i Revit**. You use the app's actual input, history, attachments and approvals.
+5. If its native minimum size is larger than the panel, enlarge/float the panel or choose **Brug på skrivebord**. This returns the same window and conversation, rather than starting another chat.
 
-The original app receives input directly. Its native menus and dialogs can open as normal separate windows. **Vis igen** restores a manually minimized/maximized source and brings it back to the panel. A minimized/hidden host pauses placement and temporarily hides a normal source without minimizing it. Use **⋯ > Gendan tidligere placering** after an interrupted placement if the previous host is no longer running. Normal panel close/hide/shutdown releases the app first.
+The panel's power control uses a Revit ExternalEvent. It does not call model APIs from a background thread. Power status means the Revit listener is on/off; it is separate from Codex sign-in, model availability and actual client connection. Turning off closes existing clients and rejects new/buffered commands from that listener generation. A command already admitted may finish.
 
-**⋯ > Levende forhåndsvisning** uses local DWM thumbnails to show a live, view-only image. An early mouse/keyboard-message relay worked for text but failed a native-button test and was removed. Do not describe the preview as an interactive screen-sharing session. **Tekstchat** retains the version 2.5 same-thread text interface, including its limited feature set.
+**Hurtigchat** sends text to an existing desktop-owned chat. It retains that chat's settings and does not resume it in a second inference session. This private desktop IPC protocol is experimental and may change between app versions. Images, approvals, interactive questions and full app controls remain in the original Codex window. There is no automatic fallback to a new paid/API conversation.
 
-## Window behavior
+**Arbejdsgange** prepares a local draft for: 01 PDF → model; 02 views/sheets; 03 schedules; 04 sketches → model; 05 building journals → Revit types. Selecting a starter neither sends a message nor changes the model. Attach the appropriate instruction book and source files in Codex; starters do not embed the complete books or prove that each task works in a particular model.
 
-`DesktopOverlayLease` changes screen bounds and, when necessary, the temporary stacking band. New leases never change the source owner, native frame/styles, parent or DPI context. The original show state, placement and band are saved with PID/start-time identity in a local recovery file. Legacy records still restore the owner/frame changed by 2.6/2.6.1. Source processes are never terminated by the plugin.
+## Consumption
 
-Version 2.6.1 was rejected in the actual user trial: the panel was blank despite its green status, then the source became minimized. That is separate from the passing WinForms fixture tests. Cross-process ownership can implicitly couple input queues ([Microsoft explanation](https://devblogs.microsoft.com/oldnewthing/20130412-00/?p=4683/)); removing that relationship and preserving the compositor-based app's native style addresses a likely cause, not a proven actual-app success. Status now reports placement or pause rather than claiming app readiness. Diagnostics include cloaking, native classes/styles and foreground/focus metadata without reading chat content.
+The native window display makes **no AI inference request**. Hurtigchat forwards one explicit message to the same desktop owner/thread and inherits its model/settings. No mirror surcharge was measured or introduced.
 
-This project exposes 138 Revit model tools and builds on [LuDattilo/revit-mcp-server](https://github.com/LuDattilo/revit-mcp-server), preserving its license and notices.
+The old standalone `CodexRevitClient` remains for compatibility/tests but is not constructed by the current panel. That older path creates an independent conversation and registers all 138 tool schemas (about 220 kB of JSON); it can explain why older behavior differed. The current panel no longer starts even its read-only thread-list process when merely opening the Codex tab.
 
-## Build and verify
+Local history snapshots now coalesce at 30-second idle / 2-second active intervals; unsolicited snapshots also reset the refresh timer. This reduces idle local IPC requests from 15 to one per 30 seconds. **This is local traffic/CPU reduction, not a measured model-token saving.** Concurrent sends reserve one delivery; uncertain delivery is never automatically replayed. Only unanswered requested snapshots time out, so a quiet conversation is not falsely treated as dead.
+
+Task complexity, tool results, model, reasoning effort and accumulated context can still change account consumption. Cumulative token processing, latest reported usage and shared account quotas are distinct; none is presented as a per-Revit bill. No live account or inference benchmark was performed. See [OpenAI app-server documentation](https://learn.chatgpt.com/docs/app-server).
+
+## Install the candidate
+
+Unzip the complete Revit 2026 package. With Revit closed, run PowerShell from its folder:
+
+```powershell
+.\scripts\install.ps1 -RevitVersion 2026 -LocalZip . -Force
+```
+
+The installer backs up the existing plugin, preserves other add-ins and registers the bundled MCP server in Codex. Use `-CodexExe 'C:\actual\path\codex.exe'` if it cannot find the executable. Do not copy only the plugin DLL: the package includes the command set, runtime, dependencies and server. The Revit 2026 package is built locally; no installation on the school PC is claimed here.
+
+The registration remains `revit-mcp`; existing automation references do not have to be renamed. The MCP exposes the existing 138 tools; availability of a tool does not validate a particular modeling result.
+
+## Native window and validation limits
+
+The native source stays top-level with its original owner, frame and DPI context. The plugin uses screen placement and temporary stacking-band changes, not cross-process SetParent or synthetic mouse/keyboard forwarding. Original bounds/state are recorded with process identity, restored on release, and recoverable after interrupted placement. No source process is killed. A DWM preview is view-only.
+
+Pause/background information stays visible while attached. Native positioning checks run at 500 ms (1200 ms while paused), without rewriting unchanged status text. Minimum-size rejection rolls placement back and explains the available/required physical dimensions. This cannot make the app smaller than its real native minimum.
+
+Controlled fixtures test pixels, geometry, input hit-testing, modal lifetime, minimize/restore, source identity and rollback. **They do not prove actual Codex rendering/typing inside Revit.** Real Revit/Codex and cross-monitor acceptance are still required. See [validation record](docs/shared-chat-status.md). Previous actual-app failures remain recorded there.
+
+## Build and check
+
+Windows, .NET 8 SDK, Node.js 20+ and locked server dependencies (the installation package bundles Node 24):
 
 ```powershell
 dotnet build plugin/RevitMCPPlugin.csproj -c "Release R26"
+dotnet build commandset/RevitMCPCommandSet.csproj -c "Release R26" -p:PublishAddinFiles=false
+dotnet run --project tests/studio-status/StudioStatus.Tests.csproj
+dotnet run --project tests/shared-chat/SharedChat.Tests.csproj
+dotnet run --project tests/codex-panel/CodexPanel.Tests.csproj
 dotnet run --project tests/window-mirror/WindowMirror.Tests.csproj
 dotnet run --project tests/window-mirror/WindowMirror.Tests.csproj -- --dpi-host-probe
-dotnet run --project tests/shared-chat/SharedChat.Tests.csproj
 ./tests/codex-panel/Test-Installer.ps1
 ```
 
-The window test creates its own source app and host. It verifies composed preview/overlay pixels, different DPI modes, native owner/frame preservation, host minimize/restore, source pause/explicit resume, modal behavior and restoration. It does not operate user applications or prove compatibility with the actual Codex app. See [validation status](docs/shared-chat-status.md).
+Server: `npm ci`, `npm run build:check`, then `node esbuild.config.mjs` and `node generate-tool-schemas.mjs`. The ordinary `npm run build` also deploys to installed local add-ins; use the separate commands when building an isolated candidate.
 
-Optional manual preview without installing: run `tests/window-mirror/bin/Debug/net8.0-windows/WindowMirror.Tests.exe --preview <absolute path to RevitMCPPlugin.dll>` and use the visible controls yourself. The helper does not automatically select or operate Codex.
+Package with `scripts/package-studio.ps1 -NodeExe <node.exe> -NodeLicense <matching-node-LICENSE> -NugetPackages <isolated-nuget-cache> -OutputZip <absolute-output.zip>` after building both C# projects and the server. Packaging does not install. Node and dependency notices accompany the package. Inspect the [2.7 validation record](docs/vue-studio-validation.md) for the exact checks executed for this candidate.
 
-A complete installer package also needs the command set, MCP server, Node runtime and dependency DLLs. Keep models, credentials, databases, local settings and backups out of Git.
+## Credit
 
-Windows references: [top-level window owner](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setwindowlongptrw), [DWM thumbnails](https://learn.microsoft.com/en-us/windows/win32/api/dwmapi/nf-dwmapi-dwmregisterthumbnail).
-
-## Interface and previous 2.6.1 placement fix
-
-Version 2.6.1 fixed saved maximize/minimize bits being reapplied after restoration. Controlled normal, maximized and minimized fixtures passed pixel and hit-test checks, but the actual Codex trial still failed. Version 2.6.2 keeps those restoration regressions and checks all four physical bounds while preserving the native owner/frame. It no longer claims app readiness from window geometry and hit testing.
-
-The refreshed interface has one primary action, a readable Codex window label, a visible status card and a compact extra-actions menu. Controls adapt to narrow panels. Automatic raising pauses while the panel's own menus are open. A local window-diagnostics.json stores the last operation's window metadata and error, without chat content or credentials.
-
-The source matches its current host's topmost band so a floating host cannot cover it. Desktop return restores the original band. Controlled tests keep their own host visible without taking foreground focus and verify original extended-style restoration.
-
-![Codex panel](docs/images/codex-panel.png)
+This is an adaptation of [LuDattilo/revit-mcp-server](https://github.com/LuDattilo/revit-mcp-server). Upstream MIT copyrights are retained. [BIMwright / rvt-mcp](https://github.com/bimwright/rvt-mcp) inspired visible power/status design; **no BIMwright code or assets were copied in this release**. Credit is visible under **Om Studio** and in [NOTICE.md](NOTICE.md). Autodesk/Revit and OpenAI/Codex remain their respective owners' products and trademarks.

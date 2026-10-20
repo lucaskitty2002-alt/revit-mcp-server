@@ -19,8 +19,9 @@ internal static class Program
 {
     [STAThread] static void Main(string[] args)
     {
-        if (args.FirstOrDefault() == "--fixture") { Fixture(args[1]); return; }
+        if (args.FirstOrDefault() == "--fixture") { Fixture(args[1], args.Contains("--minimum")); return; }
         if (args.FirstOrDefault() == "--preview") { Preview(args[1]); return; }
+        if (args.FirstOrDefault() == "--render-panel") { RenderPanels(args[1],args[2]); return; }
         if (args.FirstOrDefault() == "--dpi-host-probe") { ProbeSystemAwareHost(); return; }
         Native.SetProcessDpiAwarenessContext(new IntPtr(-4)); Native.SetThreadDpiAwarenessContext(new IntPtr(-4));
         if(args.FirstOrDefault()=="--monitors")
@@ -113,6 +114,7 @@ internal static class Program
                 }
                 finally {overlay.Release();}
                 await VerifyWindowStateTransitions(source,child.Id,new WindowInteropHelper(window).Handle,screenBounds,root);
+                await VerifyMinimumSizeRollback(new WindowInteropHelper(window).Handle,screenBounds,root);
                 Check(modalVisiblyPlaced,"visible owned modal counts as the original app interface");
                 Console.WriteLine("PASS GPU mirror, original-window overlay, DPI independence, native modal lifetime, restoration and cleanup. No user apps were operated.");
             }
@@ -298,10 +300,50 @@ internal static class Program
         throw new Exception("FAIL "+label);
     }
     static void Check(bool ok,string label){if(!ok)throw new Exception("FAIL "+label);Console.WriteLine("PASS "+label);}
-    static void Fixture(string root)
+    static async Task VerifyMinimumSizeRollback(IntPtr host,N.Rect bounds,string root)
+    {
+        string fixtureRoot=Path.Combine(root,"minimum-size"); Directory.CreateDirectory(fixtureRoot);
+        var child=Process.Start(new ProcessStartInfo(Path.ChangeExtension(Assembly.GetExecutingAssembly().Location,".exe"),"--fixture \""+fixtureRoot+"\" --minimum") {UseShellExecute=false,CreateNoWindow=true});
+        string recovery=Path.Combine(fixtureRoot,"recovery.json");
+        var lease=new DesktopOverlayLease(recovery);
+        try
+        {
+            await Until(()=>File.Exists(Path.Combine(fixtureRoot,"handles.json")),"minimum-size fixture startup");
+            var handles=JObject.Parse(File.ReadAllText(Path.Combine(fixtureRoot,"handles.json")));
+            var source=new IntPtr((long)handles["window"]);
+            using(new N.DpiScope())
+            {
+                Check(Native.GetWindowRect(source,out var original),"read original minimum-size bounds");
+                long style=Native.GetWindowLongPtr(source,-16).ToInt64();
+                long extended=Native.GetWindowLongPtr(source,-20).ToInt64();
+                IntPtr owner=N.GetWindow(source,4);
+                bool rejected=false;
+                try {lease.Attach(new CodexDesktopWindow {Handle=source,ProcessId=child.Id,Title="Controlled minimum-size fixture"},host,bounds);}
+                catch(DesktopWindowFitException ex)
+                {
+                    rejected=ex.AvailableWidth==bounds.Width&&ex.AvailableHeight==bounds.Height&&
+                        (ex.RequiredWidth>ex.AvailableWidth||ex.RequiredHeight>ex.AvailableHeight);
+                    Check(ex.Message.Contains("Brug på skrivebord"),"minimum-size error offers the original desktop app");
+                }
+                Check(rejected,"native app minimum size is reported truthfully");
+                Check(!lease.HasLease&&!File.Exists(recovery),"rejected minimum-size placement rolls back its lease and recovery file");
+                Check(Native.GetWindowRect(source,out var restored)&&SameBounds(original,restored),"minimum-size rejection restores the original desktop bounds");
+                Check(!child.HasExited&&N.GetAncestor(source,2)==source&&N.GetWindow(source,4)==owner&&
+                    Native.GetWindowLongPtr(source,-16).ToInt64()==style&&Native.GetWindowLongPtr(source,-20).ToInt64()==extended,
+                    "minimum-size rejection preserves source identity, owner, frame and process");
+                rejected=false;
+                try {DesktopOverlayLease.ShowOnDesktop(new CodexDesktopWindow {Handle=source,ProcessId=child.Id+1});}
+                catch(InvalidOperationException) {rejected=true;}
+                Check(rejected,"desktop fallback refuses a mismatched window identity");
+            }
+        }
+        finally {lease.Release();if(!child.HasExited)child.Kill();child.Dispose();}
+    }
+    static void Fixture(string root,bool minimum=false)
     {
         Native.SetProcessDpiAwarenessContext(new IntPtr(-1)); Native.SetThreadDpiAwarenessContext(new IntPtr(-1));
         var form=new Forms.Form { Text="Controlled mirror source",StartPosition=Forms.FormStartPosition.Manual,Location=new System.Drawing.Point(40,50),ClientSize=new System.Drawing.Size(500,400),BackColor=System.Drawing.Color.Teal };
+        if(minimum)form.MinimumSize=new System.Drawing.Size(1100,950);
         var text=new Forms.TextBox { Location=new System.Drawing.Point(20,70),Size=new System.Drawing.Size(440,50),Multiline=true };
         var button=new Forms.Button { Text="Open controlled modal",Location=new System.Drawing.Point(20,160),Size=new System.Drawing.Size(230,45) };
         text.TextChanged+=(s,e)=>File.WriteAllText(Path.Combine(root,"text.txt"),text.Text);
@@ -329,6 +371,67 @@ internal static class Program
         var panel=(System.Windows.UIElement)Activator.CreateInstance(assembly.GetType("revit_mcp_plugin.UI.CodexMirrorPanel"));
         var app=new System.Windows.Application();
         app.Run(new Window { Title="Codex for Revit · spejlingstest (ikke installeret)",Width=1000,Height=820,Content=panel });
+    }
+    static void RenderPanels(string assemblyPath,string outputDirectory)
+    {
+        assemblyPath=Path.GetFullPath(assemblyPath);outputDirectory=Path.GetFullPath(outputDirectory);
+        Directory.CreateDirectory(outputDirectory);
+        string assemblyDirectory=Path.GetDirectoryName(assemblyPath);
+        AssemblyLoadContext.Default.Resolving+=(context,name)=>
+        {
+            string local=Path.Combine(assemblyDirectory,name.Name+".dll");
+            if(File.Exists(local))return context.LoadFromAssemblyPath(local);
+            // Optional dependency root for a repeatable non-installed build.
+            // Never inspect credentials or contact Revit/Codex during a render.
+            string packages=Environment.GetEnvironmentVariable("NUGET_PACKAGES");
+            if(!string.IsNullOrWhiteSpace(packages)&&Directory.Exists(packages)&&
+                (name.Name=="RevitAPI"||name.Name=="RevitAPIUI"))
+            {
+                string package=Path.Combine(packages,"nice3point.revit.api."+name.Name.ToLowerInvariant());
+                if(Directory.Exists(package))
+                {
+                    string candidate=Directory.GetFiles(package,name.Name+".dll",SearchOption.AllDirectories)
+                        .Where(p=>p.IndexOf(Path.DirectorySeparatorChar+"2026.",StringComparison.OrdinalIgnoreCase)>=0)
+                        .OrderByDescending(p=>p,StringComparer.OrdinalIgnoreCase).FirstOrDefault();
+                    if(candidate!=null)return context.LoadFromAssemblyPath(candidate);
+                }
+            }
+            return null;
+        };
+        var assembly=AssemblyLoadContext.Default.LoadFromAssemblyPath(assemblyPath);
+        var app=new System.Windows.Application {ShutdownMode=ShutdownMode.OnExplicitShutdown};
+        try
+        {
+            foreach(var dimensions in new[]{new System.Windows.Size(360,700),new System.Windows.Size(900,800)})
+            {
+                string suffix=(int)dimensions.Width+"x"+(int)dimensions.Height+".png";
+                var page=(FrameworkElement)Activator.CreateInstance(assembly.GetType("revit_mcp_plugin.UI.MCPDockablePanel",true));
+                var tabs=(TabControl)page.FindName("WorkspaceTabs");
+                foreach(var tab in new[]{new{Index=0,Name="codex"},new{Index=1,Name="chat"},new{Index=2,Name="workflows"}})
+                {
+                    tabs.SelectedIndex=tab.Index;
+                    RenderElement(page,dimensions,Path.Combine(outputDirectory,"workspace-"+tab.Name+"-"+suffix));
+                }
+                var native=(FrameworkElement)Activator.CreateInstance(assembly.GetType("revit_mcp_plugin.UI.CodexMirrorPanel",true));
+                RenderElement(native,dimensions,Path.Combine(outputDirectory,"native-panel-"+suffix));
+                Console.WriteLine("Rendered real compiled controls at "+dimensions.Width+" × "+dimensions.Height+" DIP.");
+            }
+            File.WriteAllText(Path.Combine(outputDirectory,"render-scope.txt"),
+                "Static offscreen rendering of the compiled MCPDockablePanel and CodexMirrorPanel controls.\n"+
+                "No presentation source or window is created. Loaded handlers, Revit, app discovery, Codex servers and model inference are not run.\n"+
+                "These images verify layout only; native Codex rendering/input and live connection status still require actual Revit acceptance.\n");
+        }
+        finally {app.Shutdown();}
+    }
+    static void RenderElement(FrameworkElement element,System.Windows.Size size,string path)
+    {
+        element.Width=size.Width;element.Height=size.Height;
+        element.Measure(size);element.Arrange(new System.Windows.Rect(new System.Windows.Point(),size));element.UpdateLayout();
+        var bitmap=new System.Windows.Media.Imaging.RenderTargetBitmap((int)size.Width,(int)size.Height,96,96,System.Windows.Media.PixelFormats.Pbgra32);
+        bitmap.Render(element);
+        var encoder=new System.Windows.Media.Imaging.PngBitmapEncoder();
+        encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(bitmap));
+        using(var stream=File.Create(path))encoder.Save(stream);
     }
     static class Native
     {

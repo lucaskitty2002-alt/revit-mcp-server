@@ -39,7 +39,7 @@ namespace revit_mcp_plugin.UI
             _ = Task.Run(ReadLoopAsync);
             await RequestAsync("initialize", new JObject
             {
-                ["clientInfo"] = new JObject { ["name"] = "revit_codex", ["title"] = "Codex for Revit", ["version"] = "2.3.0" },
+                ["clientInfo"] = new JObject { ["name"] = "revit_codex", ["title"] = "VUE Studio", ["version"] = typeof(CodexAppServer).Assembly.GetName().Version.ToString() },
                 ["capabilities"] = new JObject { ["experimentalApi"] = true }
             }, token).ConfigureAwait(false);
             await WriteAsync(new JObject { ["method"] = "initialized", ["params"] = new JObject() }).ConfigureAwait(false);

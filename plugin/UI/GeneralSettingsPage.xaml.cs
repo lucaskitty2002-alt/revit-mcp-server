@@ -37,7 +37,7 @@ namespace revit_mcp_plugin.UI
 
                     if (config?.Settings != null)
                     {
-                        PortTextBox.Text = config.Settings.Port.ToString();
+                        PortTextBox.Text = DefaultPort.ToString();
                         SetLogLevelSelection(config.Settings.LogLevel ?? DefaultLogLevel);
                     }
                     else
@@ -117,7 +117,7 @@ namespace revit_mcp_plugin.UI
             // Validate port
             if (!int.TryParse(PortTextBox.Text.Trim(), out int port) || port < 1 || port > 65535)
             {
-                MessageBox.Show("Please enter a valid port number (1-65535).", "Invalid Port",
+                MessageBox.Show("Angiv en gyldig lokal port (1–65535).", "Ugyldig port",
                     MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
@@ -144,18 +144,18 @@ namespace revit_mcp_plugin.UI
                     config.Settings = new ServiceSettings();
                 }
 
-                config.Settings.Port = port;
+                // SocketService auto-discovers 8080-8089; do not save an unsupported custom port.
                 config.Settings.LogLevel = logLevel;
 
                 string updatedJson = JsonConvert.SerializeObject(config, Formatting.Indented);
                 File.WriteAllText(registryPath, updatedJson);
 
-                MessageBox.Show("Settings saved successfully. A Revit restart may be required for port changes to take effect.",
-                    "Settings Saved", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show("Logindstillingerne er gemt. MCP vælger selv en ledig lokal port ved start.",
+                    "VUE Studio", MessageBoxButton.OK, MessageBoxImage.Information);
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Failed to save settings: {ex.Message}", "Error",
+                MessageBox.Show($"Indstillingerne kunne ikke gemmes: {ex.Message}", "VUE Studio",
                     MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }

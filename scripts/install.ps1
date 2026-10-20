@@ -1,7 +1,7 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-Install Codex for Revit from this fork's release or a local package.
+Install VUE Studio for Revit from this fork's release or a local package.
 .PARAMETER LocalZip
 Path to a package ZIP or its extracted directory.
 .PARAMETER Force
@@ -102,4 +102,4 @@ try {
     throw $installationError
 }
 if (!$SkipMcpConfig) { Register-CodexRevit -PluginDirectory $plugin -CodexExe $CodexExe }
-Write-Output "Codex for Revit $RevitVersion installed. Open Revit, open a model, enable Revit MCP Switch, and open Codex Chat."
+Write-Output "VUE Studio for Revit $RevitVersion installed. Open Revit > VUE Studio > MCP slukket to enable the connection, then choose Aabn Studio. MCP taendt means the local listener is running; it does not confirm a Codex client connection."

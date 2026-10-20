@@ -18,19 +18,23 @@ namespace revit_mcp_plugin.Core
                 if (service.IsRunning)
                 {
                     service.Stop();
-                    TaskDialog.Show("revitMCP", "Close Server");
                 }
                 else
                 {
                     service.Initialize(commandData.Application);
                     service.Start();
-                    TaskDialog.Show("revitMCP", "Open Server");
+                    if (!service.IsRunning)
+                    {
+                        message = service.LastError ?? "MCP kunne ikke starte. Se pluginets log.";
+                        return Result.Failed;
+                    }
                 }
 
                 return Result.Succeeded;
             }
             catch (Exception ex)
             {
+                SocketService.Instance.RecordFailure(ex.Message);
                 message = ex.Message;
                 return Result.Failed;
             }

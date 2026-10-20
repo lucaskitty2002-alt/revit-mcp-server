@@ -3,12 +3,13 @@
  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
  <ScrollViewer Background="White" VerticalScrollBarVisibility="Auto">
   <StackPanel Margin="0,0,20,20">
-   <TextBlock Text="Hele Codex i Revit" FontSize="22" FontWeight="SemiBold"/>
-   <TextBlock Margin="0,12,0,0" TextWrapping="Wrap" Text="Vælg Codex-vinduet på fanen Codex-vindue og tryk Vis i Revit. Det originale appvindue placeres over panelet, så du bruger appens egen mus, tastatur, chats, godkendelser, billeder og værktøjer."/>
+   <TextBlock Text="Codex i VUE Studio" FontSize="22" FontWeight="SemiBold"/>
+   <TextBlock Margin="0,12,0,0" TextWrapping="Wrap" Text="Vælg dit åbne appvindue på fanen Codex, og tryk Vis i Revit. Det originale appvindue placeres over panelet. Du bruger appens egen mus, tastatur, chats, godkendelser, billeder og værktøjer."/>
    <TextBlock Margin="0,12,0,0" TextWrapping="Wrap" Text="Frigør sender appen tilbage til skrivebordet og gendanner dens vinduesramme og placering. Der er ét originalt appvindue. Appens egne dialoger kan åbne som separate vinduer, ligesom ved normal brug."/>
    <Button Content="Åbn Codex" Click="OpenCodex_Click" HorizontalAlignment="Left" Padding="18,8" Margin="0,20,0,12"/>
    <TextBlock x:Name="Status" Foreground="#555555" TextWrapping="Wrap"/>
-   <TextBlock Margin="0,12,0,0" TextWrapping="Wrap" Text="Vinduesplaceringen er eksperimentel. Menuen ⋯ indeholder Gendan tidligere placering efter en afbrudt placering og Levende forhåndsvisning, der viser et levende billede uden betjening. Fanen Tekstchat åbner den separate tekstklient."/>
+   <TextBlock Margin="0,12,0,0" TextWrapping="Wrap" Text="Hvis panelet er for lille, vælg Brug på skrivebord. Du fortsætter i samme vindue og samtale. Vinduesplaceringen er eksperimentel. Menuen ⋯ indeholder gendannelse og en visuel forhåndsvisning uden betjening. Hurtigchat sender tekst til en eksisterende samtale; billeder og godkendelser håndteres i appen."/>
+   <TextBlock Margin="0,12,0,0" TextWrapping="Wrap" Text="Vinduesvisningen starter ingen ekstra AI-samtale. Forbruget afhænger af beskeder, model, kontekst og værktøjer i den valgte chat. Kontogrænser er fælles for dine Codex-sessioner og er ikke en særskilt regning for Revit."/>
   </StackPanel>
  </ScrollViewer>
 </Page>

@@ -26,8 +26,10 @@ namespace revit_mcp_plugin.UI
                 var lines = new List<string>();
                 double? total = Number(_tokens?["total"]?["totalTokens"]);
                 double? last = Number(_tokens?["last"]?["totalTokens"]);
-                lines.Add("This chat: " + (total.HasValue ? total.Value.ToString("N0") + " tokens" : "token usage unavailable"));
-                if (last.HasValue) lines.Add("Last turn: " + last.Value.ToString("N0") + " tokens");
+                lines.Add("This chat (cumulative): " + (total.HasValue ? total.Value.ToString("N0") + " tokens" : "token usage unavailable"));
+                // The protocol reports 'last'; it is not a guaranteed aggregation
+                // of every model request and tool round within a whole user turn.
+                if (last.HasValue) lines.Add("Latest reported usage: " + last.Value.ToString("N0") + " tokens");
                 bool found = false;
                 if (_limits?["rateLimitsByLimitId"] is JObject pools && pools.Count > 0)
                 {
@@ -37,7 +39,7 @@ namespace revit_mcp_plugin.UI
                 else found = AddPool(lines, _limits?["rateLimits"] as JObject, "Codex");
                 if (!found) lines.Add("Account limits: unavailable for this connection.");
                 if (_updated.HasValue) lines.Add("Account snapshot: " + _updated.Value.ToString("g") + " (local time)");
-                lines.Add("Account limits are shared across Codex. Tokens are not a price estimate.");
+                lines.Add("Account limits are shared across Codex. Processed context and tool output can count again across requests; tokens are not a price or remaining quota.");
                 return string.Join("\n", lines);
             }
         }
