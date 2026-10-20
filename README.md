@@ -1,17 +1,17 @@
 # Codex desktop app in Revit
 
-Version 2.6 places the **original Codex desktop window over the Revit panel**, preserving the app's own interface, mouse/keyboard input, chats, approvals, attachments and tools. The user chose one original app window that can move between Revit and the desktop. This is an experimental Windows window-placement integration, not two simultaneously interactive copies.
+Version 2.6.1 places the **original Codex desktop window over the Revit panel**, preserving the app's own interface, mouse/keyboard input, chats, approvals, attachments and tools. The user chose one original app window that can move between Revit and the desktop. This is an experimental Windows window-placement integration, not two simultaneously interactive copies.
 
 ## Use
 
 1. Install with Revit closed. Start Revit and enable **Revit MCP Switch** for model tools.
 2. Open **Codex Chat > Codex-vindue**. Keep Codex open and signed in.
-3. Choose **Hent vinduer**, select the Codex app window and choose **Vis Codex i Revit**.
-4. Use Codex normally in the panel area. Choose **Tilbage til skrivebord** to restore its frame and original placement.
+3. Select the Codex app window and choose **Vis i Revit**. Use the refresh button if the window is missing.
+4. Use Codex normally in the panel area. Choose **Frigør** to restore its frame and original placement.
 
-The original app receives input directly. Its native menus and dialogs can open as normal separate windows. Make the panel larger if Codex refuses its size. Use **Gendan vindue** after an interrupted placement if the previous host is no longer running. Normal panel close/hide/shutdown releases the app first. A hard process crash is not guaranteed to preserve an owned window.
+The original app receives input directly. Its native menus and dialogs can open as normal separate windows. Make the panel larger if Codex refuses its size. Use **⋯ > Gendan tidligere placering** after an interrupted placement if the previous host is no longer running. Normal panel close/hide/shutdown releases the app first. A hard process crash is not guaranteed to preserve an owned window.
 
-**Kun forhåndsvisning** uses local DWM thumbnails to show a live, view-only image. An early mouse/keyboard-message relay worked for text but failed a native-button test and was removed. Do not describe the preview as an interactive screen-sharing session. **Tekstchat** retains the version 2.5 same-thread text interface, including its limited feature set.
+**⋯ > Levende forhåndsvisning** uses local DWM thumbnails to show a live, view-only image. An early mouse/keyboard-message relay worked for text but failed a native-button test and was removed. Do not describe the preview as an interactive screen-sharing session. **Tekstchat** retains the version 2.5 same-thread text interface, including its limited feature set.
 
 ## Window behavior
 
@@ -35,3 +35,13 @@ Optional manual preview without installing: run `tests/window-mirror/bin/Debug/n
 A complete installer package also needs the command set, MCP server, Node runtime and dependency DLLs. Keep models, credentials, databases, local settings and backups out of Git.
 
 Windows references: [top-level window owner](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setwindowlongptrw), [DWM thumbnails](https://learn.microsoft.com/en-us/windows/win32/api/dwmapi/nf-dwmapi-dwmregisterthumbnail).
+
+## Version 2.6.1 fix and interface
+
+Maximized and minimized source windows are restored before placement. The attached style no longer reapplies the saved maximize/minimize bits; desktop return still restores the original state. Regression tests failed with the old implementation and now pass for normal, maximized and minimized fixtures, including actual composed overlay pixels and native hit testing. Placement checks all four physical screen bounds and confirms the current owner. A green status requires a visible source or owned modal; an existing window handle alone is not treated as success.
+
+The refreshed interface has one primary action, a readable Codex window label, a visible status card and a compact extra-actions menu. Controls adapt to narrow panels. Automatic raising pauses while the panel's own menus are open. A local window-diagnostics.json stores the last operation's window metadata and error, without chat content or credentials.
+
+The source matches its current host's topmost band so a floating host cannot cover it. Desktop return restores the original band. Controlled tests keep their own host visible without taking foreground focus and verify original extended-style restoration.
+
+![Codex panel](docs/images/codex-panel.png)

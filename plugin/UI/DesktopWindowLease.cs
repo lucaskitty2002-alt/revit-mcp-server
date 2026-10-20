@@ -14,6 +14,7 @@ namespace revit_mcp_plugin.UI
         public IntPtr Handle { get; set; }
         public int ProcessId { get; set; }
         public string Title { get; set; }
+        public string DisplayName => string.IsNullOrWhiteSpace(Title) || Title.Equals("ChatGPT", StringComparison.OrdinalIgnoreCase) ? "Codex-app" : Title;
         public override string ToString() => Title + " (" + ProcessId + ")";
     }
 

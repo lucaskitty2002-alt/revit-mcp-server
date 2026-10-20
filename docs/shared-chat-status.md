@@ -36,3 +36,13 @@ Version 2.5.0.0 was installed for Revit 2026 on 2026-10-20. Its limited same-thr
 ## Local installation verification
 
 Version 2.6.0.0 was installed for Revit 2026 on 2026-10-20 with Revit closed. Its installed DLL matches the tested package from source commit 4dcc601. SHA-256: 27268E64F93366EC1673E7326775FEA035C59E9A85D2753D5455A28F198DDA95. The installer backed up the previous add-in and registered revit-mcp. The actual Codex/Revit manual acceptance checks above are still pending.
+
+## Version 2.6.1 candidate: reproduced placement bug and clearer UI
+
+A read-only check in the actual Revit session confirmed that version 2.6 was loaded and its button handler ran. Later status reported rejected placement while the Codex source was maximized. The old attach sequence reapplied saved WS_MAXIMIZE/WS_MINIMIZE bits after restoring the source window. Controlled tests reproduced both failures before the fix.
+
+Version 2.6.1 uses SW_RESTORE and clears only the live max/min state while keeping the original show state in the recovery snapshot. All four physical bounds, current window ownership and visual placement are checked. Actual overlay pixel/hit-test checks now pass for normal, maximized and minimized controlled source windows; release restores their original show command, normal placement and styles. An owned dialog without GetLastActivePopup tracking is also covered.
+
+The controlled host uses a temporary topmost band without requesting foreground activation. The overlay matches the actual host's band and restores the source's original extended style/band on release. This covers a second case where a correctly sized source could stay behind its host. Automatic raising is limited to the foreground host/app family and pauses for panel menus.
+
+The UI now has a primary Vis i Revit action, Frigør, a compact menu, visible status/error cards and responsive controls. Window labels use Codex-app instead of exposing ChatGPT plus a PID. A local last-operation diagnostic includes window metadata and errors only. This candidate still needs the actual Codex/Revit manual trial after installation.

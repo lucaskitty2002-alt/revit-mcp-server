@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Diagnostics;
@@ -26,7 +27,9 @@ internal static class Program
         var child = Process.Start(new ProcessStartInfo(Path.ChangeExtension(Assembly.GetExecutingAssembly().Location, ".exe"), "--fixture \"" + root + "\"") { UseShellExecute = false, CreateNoWindow = true });
         var app = new System.Windows.Application();
         var surface = new CodexMirrorSurface();
-        var window = new Window { Title = "Revit mirror · controlled test", Width = 720, Height = 580, Left = 650, Top = 50, Content = surface };
+        // The user may be working in another app. Keep only our controlled test
+        // surface visible without depending on permission to acquire foreground.
+        var window = new Window { Title = "Revit mirror · controlled test", Width = 720, Height = 580, Left = 650, Top = 50, Content = surface, Topmost = true, ShowActivated = false };
         Exception failure = null;
         window.ContentRendered += async (s,e) => {
             try
@@ -36,9 +39,10 @@ internal static class Program
                 var source = new IntPtr((long)handles["window"]);
                 IntPtr originalParent=Native.GetParent(source);
                 IntPtr style=Native.GetWindowLongPtr(source,-16);
-                window.Activate();
+                IntPtr extendedStyle=Native.GetWindowLongPtr(source,-20);
                 await Task.Delay(250);
-                Check(N.GetAncestor(N.GetForegroundWindow(),2) == new WindowInteropHelper(window).Handle,"test destination foreground");
+                Check(N.IsWindowVisible(new WindowInteropHelper(window).Handle)&&!N.IsIconic(new WindowInteropHelper(window).Handle),"test destination visible without requiring foreground");
+                Check((Native.GetWindowLongPtr(new WindowInteropHelper(window).Handle,-20).ToInt64()&0x8)!=0,"controlled destination uses a temporary topmost band");
                 surface.Start(new CodexDesktopWindow { Handle=source,ProcessId=child.Id,Title="Controlled fixture" });
                 await Task.Delay(400);
                 var session=(DesktopMirrorSession)typeof(CodexMirrorSurface).GetField("_session",BindingFlags.NonPublic|BindingFlags.Instance).GetValue(surface);
@@ -64,6 +68,7 @@ internal static class Program
                 Check(!surface.IsSharing&&!child.HasExited&&N.IsWindow(source),"stop leaves source process/window alive");
                 var recovery=Path.Combine(root,"overlay-recovery.json");
                 var overlay=new DesktopOverlayLease(recovery);
+                bool modalVisiblyPlaced=false;
                 var screenBounds=new N.Rect {Left=(int)a.X,Top=(int)a.Y,Right=(int)b.X,Bottom=(int)b.Y};
                 try
                 {
@@ -76,16 +81,30 @@ internal static class Program
                         Native.GetWindowRect(source,out var placed);
                         Check(Math.Abs(placed.Left-screenBounds.Left)<3 && Math.Abs(placed.Width-screenBounds.Width)<3,"original window fits the host panel in physical pixels");
                     }
+                    await Task.Delay(250);
+                    Check(overlay.IsVisiblyPlaced(),"normal overlay reports verified visible placement");
+                    VerifyOverlayPixels(source,screenBounds,Path.Combine(root,"controlled-overlay-normal.png"));
                     File.WriteAllText(Path.Combine(root,"open-modal.txt"),"open");
                     await Until(()=>File.Exists(Path.Combine(root,"popup.txt")),"normal source control opens its owned modal");
                     Check((Native.GetWindowLongPtr(source,-16).ToInt64()&0x08000000L)!=0,"modal disables its real owner normally");
+                    await Task.Delay(250);
+                    modalVisiblyPlaced=overlay.IsVisiblyPlaced();
+                    if(!modalVisiblyPlaced)
+                    {
+                        overlay.CaptureDiagnostic("controlled_modal_visibility",null);
+                        Console.WriteLine("Owned modal visibility diagnostic: "+overlay.LastDiagnostic);
+                        var popup=new IntPtr(long.Parse(File.ReadAllText(Path.Combine(root,"popup.txt"))));
+                        Console.WriteLine("Controlled popup="+popup+" visible="+N.IsWindowVisible(popup)+" owner="+N.GetWindow(popup,4)+" lastActive="+Native.GetLastActivePopup(source)+" foreground="+N.GetForegroundWindow());
+                    }
                     overlay.Release();
                     Check((Native.GetWindowLongPtr(source,-16).ToInt64()&0x08000000L)!=0,"release preserves a live modal's disabled-owner state");
                     File.WriteAllText(Path.Combine(root,"close-modal.txt"),"close");
                     await Until(()=>(Native.GetWindowLongPtr(source,-16).ToInt64()&0x08000000L)==0,"modal closes through the source app's normal UI loop");
-                    Check(Native.GetParent(source)==originalParent && Native.GetWindowLongPtr(source,-16)==style && !File.Exists(recovery),"release restores owner, styles and recovery state");
+                    Check(Native.GetParent(source)==originalParent && Native.GetWindowLongPtr(source,-16)==style && Native.GetWindowLongPtr(source,-20)==extendedStyle && !File.Exists(recovery),"release restores owner, styles including topmost state, and recovery state");
                 }
                 finally {overlay.Release();}
+                await VerifyWindowStateTransitions(source,child.Id,new WindowInteropHelper(window).Handle,screenBounds,root);
+                Check(modalVisiblyPlaced,"visible owned modal counts as the original app interface");
                 Console.WriteLine("PASS GPU mirror, original-window overlay, DPI independence, native modal lifetime, restoration and cleanup. No user apps were operated.");
             }
             catch(Exception ex) { failure=ex; }
@@ -94,6 +113,76 @@ internal static class Program
         try { app.Run(window); }
         finally { if(!child.HasExited) child.Kill(); child.Dispose(); }
         if(failure!=null) throw failure;
+    }
+    static async Task VerifyWindowStateTransitions(IntPtr source,int processId,IntPtr host,N.Rect bounds,string root)
+    {
+        // Only this test's own fixture is operated. Real app windows are never selected here.
+        var failures=new List<Exception>();
+        foreach(int showCommand in new[]{3,2})
+        {
+            string state=showCommand==3?"maximized":"minimized";
+            string recovery=Path.Combine(root,"overlay-"+state+"-recovery.json");
+            var overlay=new DesktopOverlayLease(recovery);
+            try
+            {
+                Native.ShowWindow(source,showCommand);
+                await Until(()=>showCommand==3?Native.IsZoomed(source):N.IsIconic(source),state+" fixture show state");
+                var original=new DesktopWindowLease.Native.WindowPlacement {Length=Marshal.SizeOf(typeof(DesktopWindowLease.Native.WindowPlacement))};
+                Check(DesktopWindowLease.Native.GetWindowPlacement(source,ref original),"read "+state+" placement");
+                long originalStyle=Native.GetWindowLongPtr(source,-16).ToInt64();
+                long originalExtendedStyle=Native.GetWindowLongPtr(source,-20).ToInt64();
+                overlay.Attach(new CodexDesktopWindow {Handle=source,ProcessId=processId,Title="Controlled "+state+" fixture"},host,bounds);
+                await Task.Delay(250);
+                Check(overlay.IsAttached&&!Native.IsZoomed(source)&&!N.IsIconic(source),state+" source is restored to a normal interactive window while placed");
+                Check(overlay.IsVisiblyPlaced(),state+" overlay reports verified visible placement");
+                Check(N.GetAncestor(source,2)==source&&(Native.GetWindowLongPtr(source,-16).ToInt64()&0x40000000L)==0,state+" source remains top-level");
+                using(new N.DpiScope())
+                {
+                    Check(Native.GetWindowRect(source,out var placed),"read placed "+state+" physical bounds");
+                    Console.WriteLine(state+" requested="+BoundsText(bounds)+" actual="+BoundsText(placed));
+                    Check(SameBounds(placed,bounds),state+" source fits all four host bounds in physical pixels");
+                }
+                VerifyOverlayPixels(source,bounds,Path.Combine(root,"controlled-overlay-"+state+".png"));
+                overlay.Release();
+                await Until(()=>showCommand==3?Native.IsZoomed(source):N.IsIconic(source),state+" original show state restored");
+                var restored=new DesktopWindowLease.Native.WindowPlacement {Length=Marshal.SizeOf(typeof(DesktopWindowLease.Native.WindowPlacement))};
+                Check(DesktopWindowLease.Native.GetWindowPlacement(source,ref restored),"read restored "+state+" placement");
+                Check(restored.ShowCommand==original.ShowCommand&&
+                    Math.Abs(restored.NormalPosition.Left-original.NormalPosition.Left)<3&&
+                    Math.Abs(restored.NormalPosition.Top-original.NormalPosition.Top)<3&&
+                    Math.Abs(restored.NormalPosition.Right-original.NormalPosition.Right)<3&&
+                    Math.Abs(restored.NormalPosition.Bottom-original.NormalPosition.Bottom)<3,
+                    state+" release restores saved show command and normal placement");
+                Check(Native.GetWindowLongPtr(source,-16).ToInt64()==originalStyle&&Native.GetWindowLongPtr(source,-20).ToInt64()==originalExtendedStyle&&!File.Exists(recovery),state+" release restores original styles including topmost state and removes recovery record");
+            }
+            catch(Exception ex)
+            {
+                failures.Add(new Exception(state+" overlay regression failed: "+ex.Message,ex));
+                Console.WriteLine("FAIL "+state+" overlay regression: "+ex.Message);
+            }
+            finally {overlay.Release();Native.ShowWindow(source,9);}
+        }
+        if(failures.Count>0)throw new AggregateException("Window-state overlay regressions failed.",failures);
+    }
+    static bool SameBounds(N.Rect a,N.Rect b)=>Math.Abs(a.Left-b.Left)<3&&Math.Abs(a.Top-b.Top)<3&&Math.Abs(a.Right-b.Right)<3&&Math.Abs(a.Bottom-b.Bottom)<3;
+    static string BoundsText(N.Rect r)=>r.Left+","+r.Top+","+r.Width+"x"+r.Height;
+    static void VerifyOverlayPixels(IntPtr source,N.Rect bounds,string image)
+    {
+        using(new N.DpiScope())
+        {
+            var center=new N.Point {X=(bounds.Left+bounds.Right)/2,Y=(bounds.Top+bounds.Bottom)/2};
+            Check(N.GetAncestor(Native.WindowFromPoint(center),2)==source,"original overlay receives the center-point hit test");
+            using(var bitmap=new System.Drawing.Bitmap(bounds.Width,bounds.Height))
+            {
+                using(var graphics=System.Drawing.Graphics.FromImage(bitmap))graphics.CopyFromScreen(bounds.Left,bounds.Top,0,0,bitmap.Size);
+                bitmap.Save(image);
+                int teal=0;
+                for(int row=0;row<bitmap.Height;row+=8)for(int col=0;col<bitmap.Width;col+=8)
+                {var pixel=bitmap.GetPixel(col,row);if(pixel.G>80&&pixel.B>70&&pixel.R<50)teal++;}
+                Check(teal>100,"actual original overlay pixels are visible over the host panel");
+            }
+        }
+        Console.WriteLine("Controlled original overlay screenshot: "+image);
     }
     static async Task Until(Func<bool> test,string label)
     {
@@ -112,7 +201,7 @@ internal static class Program
         Forms.Form dialog=null;bool opened=false;
         button.Click+=(s,e)=>{
             using(var modal=new Forms.Form {Text="Controlled owned modal",ClientSize=new System.Drawing.Size(300,160)})
-            {dialog=modal;File.WriteAllText(Path.Combine(root,"popup.txt"),"opened");modal.ShowDialog(form);dialog=null;}
+            {dialog=modal;modal.Shown+=(s,e)=>File.WriteAllText(Path.Combine(root,"popup.txt"),modal.Handle.ToInt64().ToString());modal.ShowDialog(form);dialog=null;}
         };
         var fixtureTimer=new Forms.Timer {Interval=100};
         fixtureTimer.Tick+=(s,e)=>{
@@ -143,5 +232,9 @@ internal static class Program
         [DllImport("user32.dll")] public static extern bool AreDpiAwarenessContextsEqual(IntPtr a,IntPtr b);
         [DllImport("user32.dll")] public static extern IntPtr GetWindowDpiAwarenessContext(IntPtr hwnd);
         [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hwnd,out N.Rect rect);
+        [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hwnd,int command);
+        [DllImport("user32.dll")] public static extern bool IsZoomed(IntPtr hwnd);
+        [DllImport("user32.dll")] public static extern IntPtr WindowFromPoint(N.Point point);
+        [DllImport("user32.dll")] public static extern IntPtr GetLastActivePopup(IntPtr hwnd);
     }
 }

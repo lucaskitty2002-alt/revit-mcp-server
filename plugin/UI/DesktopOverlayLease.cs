@@ -14,7 +14,10 @@ namespace revit_mcp_plugin.UI
     {
         private readonly string _recoveryFile;
         private Snapshot _snapshot;
-        public bool IsAttached => _snapshot != null && SameWindow(_snapshot);
+        private DesktopMirrorSession.Native.Rect _lastBounds;
+        public bool HasLease => _snapshot != null;
+        public bool IsAttached => _snapshot != null && SameWindow(_snapshot) && N.GetWindow(new IntPtr(_snapshot.Window), 4) == new IntPtr(_snapshot.Host);
+        public string LastDiagnostic { get; private set; } = "";
         public DesktopOverlayLease(string recoveryFile) { _recoveryFile = recoveryFile; }
         public void Attach(CodexDesktopWindow window, IntPtr host, DesktopMirrorSession.Native.Rect bounds)
         {
@@ -36,27 +39,111 @@ namespace revit_mcp_plugin.UI
             catch { _snapshot = null; throw; }
             try
             {
-                N.ShowWindow(window.Handle, 4);
-                Set(window.Handle, -16, (_snapshot.Style & ~(0x00C00000L | 0x00040000L)) | 0x80000000L);
+                // Save the original show state above, then genuinely restore the app.
+                // Reapplying the saved WS_MAXIMIZE/WS_MINIMIZE bits here undoes that
+                // restore and makes a full-screen app reject the smaller panel bounds.
+                N.ShowWindow(window.Handle, 9);
+                long normalStyle = N.GetWindowLongPtr(window.Handle, -16).ToInt64();
+                Set(window.Handle, -16, (normalStyle & ~(0x00C00000L | 0x00040000L | 0x01000000L | 0x20000000L)) | 0x80000000L);
                 Set(window.Handle, -8, host.ToInt64());
                 Update(bounds);
+                RaiseWithHost(window.Handle, host);
+                // Activation can be refused by Windows; visibility is checked separately.
                 SetForegroundWindow(window.Handle); // Only called by the user's attach button.
+                CaptureDiagnostic("attached", null);
             }
-            catch { Release(); throw; }
+            catch (Exception ex) { CaptureDiagnostic("attach_failed", ex.Message); Release(); throw; }
         }
-        public void Update(DesktopMirrorSession.Native.Rect bounds)
+        public void Update(DesktopMirrorSession.Native.Rect bounds, bool allowZOrder = true)
         {
             if (_snapshot == null) return;
             if (!SameWindow(_snapshot)) { Release(); return; }
-            if (bounds.Width < 1 || bounds.Height < 1) return;
+            if (bounds.Width < 1 || bounds.Height < 1) throw new InvalidOperationException("Panelet er ikke klar endnu. Åbn det og prøv igen.");
+            _lastBounds = bounds;
             using (new DesktopMirrorSession.Native.DpiScope())
             {
                 var source = new IntPtr(_snapshot.Window);
-                if (GetWindowRect(source, out var current) && current.Left == bounds.Left && current.Top == bounds.Top && current.Width == bounds.Width && current.Height == bounds.Height) return;
-                Check(N.SetWindowPos(source, IntPtr.Zero, bounds.Left, bounds.Top, bounds.Width, bounds.Height, 0x0004 | 0x0010 | 0x0020 | 0x0200));
-                if (GetWindowRect(source, out var actual) && (Math.Abs(actual.Width - bounds.Width) > 3 || Math.Abs(actual.Height - bounds.Height) > 3))
-                    throw new InvalidOperationException("Codex kunne ikke tilpasses panelets størrelse. Gør Revit-panelet større og prøv igen.");
+                if (!GetWindowRect(source, out var current) || !Fits(current, bounds))
+                {
+                    Check(N.SetWindowPos(source, IntPtr.Zero, bounds.Left, bounds.Top, bounds.Width, bounds.Height, 0x0004 | 0x0010 | 0x0020 | 0x0200));
+                    Check(GetWindowRect(source, out current));
+                    if (!Fits(current, bounds))
+                    {
+                        CaptureDiagnostic("size_rejected", "Requested and actual window bounds differ.");
+                        if (Math.Abs(current.Width - bounds.Width) <= 3 && Math.Abs(current.Height - bounds.Height) <= 3)
+                            throw new InvalidOperationException("Windows flyttede ikke Codex hen til panelet. Frigør vinduet og prøv igen.");
+                        throw new InvalidOperationException("Codex passer ikke i panelet. Ønsket " + bounds.Width + " × " + bounds.Height + " px, faktisk " + current.Width + " × " + current.Height + " px. Gør panelet større og prøv igen.");
+                    }
+                }
+                // A docked/floating native host may cover an otherwise correctly sized
+                // window. Raise only while this host/app family is in the foreground.
+                IntPtr foreground = DesktopMirrorSession.Native.GetAncestor(DesktopMirrorSession.Native.GetForegroundWindow(), 2);
+                if (allowZOrder && BelongsTo(foreground, new IntPtr(_snapshot.Host)) && !IsVisiblyPlaced())
+                    RaiseWithHost(source, new IntPtr(_snapshot.Host));
             }
+        }
+        private static void RaiseWithHost(IntPtr source, IntPtr host)
+        {
+            // An owned top-level window does not automatically inherit a newly
+            // assigned owner's topmost band. Match that host only; Release restores
+            // the app's original band, so ordinary Revit stays ordinary as well.
+            bool hostTopmost = (N.GetWindowLongPtr(host, -20).ToInt64() & 0x8) != 0;
+            bool sourceTopmost = (N.GetWindowLongPtr(source, -20).ToInt64() & 0x8) != 0;
+            IntPtr insertAfter = hostTopmost ? new IntPtr(-1) : sourceTopmost ? new IntPtr(-2) : IntPtr.Zero;
+            Check(N.SetWindowPos(source, insertAfter, 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0010 | 0x0040 | 0x0200));
+        }
+        public bool IsVisiblyPlaced()
+        {
+            if (!IsAttached) return false;
+            var source = new IntPtr(_snapshot.Window);
+            if (!N.IsWindowVisible(source) || DesktopMirrorSession.Native.IsIconic(source) || IsZoomed(source)) return false;
+            using (new DesktopMirrorSession.Native.DpiScope())
+            {
+                if (!GetWindowRect(source, out var actual) || !Fits(actual, _lastBounds)) return false;
+                // A native modal is a valid active part of the source app's UI.
+                if (!IsWindowEnabled(source))
+                {
+                    IntPtr popup = GetLastActivePopup(source);
+                    if (popup != source && N.IsWindowVisible(popup) && BelongsTo(popup, source)) return true;
+                    bool ownedDialog = false;
+                    N.EnumWindows((window, parameter) =>
+                    {
+                        if (window != source && N.IsWindowVisible(window) && IsWindowEnabled(window) && BelongsTo(window, source))
+                        {
+                            ownedDialog = true;
+                            return false;
+                        }
+                        return true;
+                    }, IntPtr.Zero);
+                    return ownedDialog;
+                }
+                var point = new DesktopMirrorSession.Native.Point { X = (actual.Left + actual.Right) / 2, Y = (actual.Top + actual.Bottom) / 2 };
+                return BelongsTo(DesktopMirrorSession.Native.GetAncestor(WindowFromPoint(point), 2), source);
+            }
+        }
+        private static bool Fits(DesktopMirrorSession.Native.Rect actual, DesktopMirrorSession.Native.Rect expected) =>
+            Math.Abs(actual.Left - expected.Left) <= 3 && Math.Abs(actual.Top - expected.Top) <= 3 &&
+            Math.Abs(actual.Right - expected.Right) <= 3 && Math.Abs(actual.Bottom - expected.Bottom) <= 3;
+        private static bool BelongsTo(IntPtr window, IntPtr root)
+        {
+            for (int i = 0; window != IntPtr.Zero && i < 24; i++, window = N.GetWindow(window, 4)) if (window == root) return true;
+            return false;
+        }
+        public void CaptureDiagnostic(string action, string error)
+        {
+            try
+            {
+                var source = _snapshot == null ? IntPtr.Zero : new IntPtr(_snapshot.Window);
+                using (new DesktopMirrorSession.Native.DpiScope())
+                {
+                    GetWindowRect(source, out var actual);
+                    LastDiagnostic = JsonConvert.SerializeObject(new { version = typeof(DesktopOverlayLease).Assembly.GetName().Version.ToString(),
+                        utc = DateTime.UtcNow, action, error, source = source.ToInt64(), host = _snapshot?.Host,
+                        expected = _lastBounds, actual, visible = N.IsWindowVisible(source), minimized = DesktopMirrorSession.Native.IsIconic(source),
+                        maximized = IsZoomed(source), owner = N.GetWindow(source, 4).ToInt64(), visuallyPlaced = IsVisiblyPlaced() }, Formatting.Indented);
+                }
+            }
+            catch { /* Diagnostics must never prevent releasing the app. */ }
         }
         public void Release()
         {
@@ -96,7 +183,8 @@ namespace revit_mcp_plugin.UI
             var placement = snapshot.Placement;
             placement.Length = Marshal.SizeOf(typeof(N.WindowPlacement));
             Check(N.SetWindowPlacement(window, ref placement));
-            Check(N.SetWindowPos(window, IntPtr.Zero, 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0004 | 0x0010 | 0x0020));
+            IntPtr originalBand = new IntPtr((snapshot.ExtendedStyle & 0x8) != 0 ? -1 : -2);
+            Check(N.SetWindowPos(window, originalBand, 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0010 | 0x0020 | 0x0200));
             N.ShowWindow(window, snapshot.WasVisible ? placement.ShowCommand : 0);
         }
         private static void Set(IntPtr window, int index, long value)
@@ -113,5 +201,9 @@ namespace revit_mcp_plugin.UI
         }
         [DllImport("user32.dll")] private static extern bool SetForegroundWindow(IntPtr window);
         [DllImport("user32.dll")] private static extern bool GetWindowRect(IntPtr window, out DesktopMirrorSession.Native.Rect bounds);
+        [DllImport("user32.dll")] private static extern bool IsZoomed(IntPtr window);
+        [DllImport("user32.dll")] private static extern bool IsWindowEnabled(IntPtr window);
+        [DllImport("user32.dll")] private static extern IntPtr GetLastActivePopup(IntPtr window);
+        [DllImport("user32.dll")] private static extern IntPtr WindowFromPoint(DesktopMirrorSession.Native.Point point);
     }
 }

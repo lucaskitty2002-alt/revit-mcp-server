@@ -1,13 +1,13 @@
-# Hele Codex i Revit
+# Codex i Revit
 
-1. Installér med Revit lukket.
-2. Start Revit og aktivér **Revit MCP Switch** for modelværktøjer.
-3. Åbn **Codex Chat > Codex-vindue** og hold Codex-appen åben.
-4. Tryk **Hent vinduer**, vælg appvinduet og tryk **Vis Codex i Revit**.
-5. Brug appens normale brugerflade. **Tilbage til skrivebord** gendanner vinduets ramme og placering.
+1. Installér med Revit lukket, og start Revit igen.
+2. Åbn **Codex Chat > Codex-vindue**.
+3. Vælg **Codex-app**, og tryk **Vis i Revit**. Brug opdateringsknappen, hvis vinduet mangler.
+4. Når status er grøn, bruger du det originale Codex-vindue med appens normale chats, billeder og godkendelser.
+5. **Frigør** sender vinduet tilbage til dets oprindelige placering og tilstand på skrivebordet.
 
-Det er det originale appvindue, der placeres over Revit-panelet, så appen modtager mus og tastatur direkte. Der er ét originalt vindue. Menusystemer og dialoger fungerer som i appen og kan åbne som almindelige separate vinduer.
+Maksimerede og minimerede vinduer gendannes automatisk før placering. Status og eventuelle fejl står øverst. Hvis appens minimumsstørrelse er større end panelet, vises en konkret størrelsesfejl; gør panelet større og prøv igen.
 
-Gør panelet større, hvis Codex ikke accepterer størrelsen. **Gendan vindue** kan bruges efter en afbrudt placering, når den tidligere vært ikke længere kører. Normal lukning og skjulning frigør vinduet; et hårdt programnedbrud kan ikke garanteres at bevare et ejet vindue.
+**⋯** åbner ekstra muligheder: åbn appen, opdater vindueslisten, levende forhåndsvisning, gendan tidligere placering og teknisk info. Forhåndsvisningen er kun et billede. Fanen **Tekstchat** bevarer den begrænsede tekstklient.
 
-**Kun forhåndsvisning** viser et levende billede uden betjening. Fanen **Tekstchat** bevarer den separate, begrænsede tekstklient. Den nye metode bruger ikke SetParent og ændrer ikke Codex-appens DPI-tilstand. Kompatibiliteten med den rigtige Codex-app skal stadig afprøves manuelt.
+Der er ét originalt appvindue, som flyttes mellem skrivebordet og Revit. Native dialoger kan åbne separat. **Revit MCP Switch** skal være aktiveret for modelværktøjer.

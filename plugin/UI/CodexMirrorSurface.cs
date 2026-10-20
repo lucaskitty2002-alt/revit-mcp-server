@@ -55,13 +55,7 @@ namespace revit_mcp_plugin.UI
         protected override void OnRender(DrawingContext drawing)
         {
             base.OnRender(drawing);
-            drawing.DrawRectangle(new SolidColorBrush(Color.FromRgb(25,25,25)),null,new Rect(0,0,ActualWidth,ActualHeight));
-            if(_session == null)
-            {
-                var text=new FormattedText("Vælg Codex-vinduet og tryk Vis Codex i Revit.",System.Globalization.CultureInfo.CurrentUICulture,
-                    FlowDirection.LeftToRight,new Typeface("Segoe UI"),15,Brushes.White,VisualTreeHelper.GetDpi(this).PixelsPerDip);
-                drawing.DrawText(text,new Point(18,20));
-            }
+            drawing.DrawRectangle(_session == null ? Brushes.White : new SolidColorBrush(Color.FromRgb(25,25,25)),null,new Rect(0,0,ActualWidth,ActualHeight));
         }
     }
 }
